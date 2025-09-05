@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -12,9 +11,21 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+/** App envuelta en SafeAreaProvider */
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <Main />
+    </SafeAreaProvider>
+  );
+}
+
+function Main() {
+  const insets = useSafeAreaInsets();
+
   // tabs: inicio | historial | ajustes (mock simple)
   const [tab, setTab] = useState("inicio");
 
@@ -27,12 +38,8 @@ export default function App() {
   const [monto, setMonto] = useState("");
 
   const resumen = useMemo(() => {
-    const debes = items
-      .filter((i) => i.tipo === "pago")
-      .reduce((a, b) => a + b.monto, 0);
-    const teDeben = items
-      .filter((i) => i.tipo === "cobro")
-      .reduce((a, b) => a + b.monto, 0);
+    const debes = items.filter(i => i.tipo === "pago").reduce((a, b) => a + b.monto, 0);
+    const teDeben = items.filter(i => i.tipo === "cobro").reduce((a, b) => a + b.monto, 0);
     return { debes, teDeben };
   }, [items]);
 
@@ -46,16 +53,14 @@ export default function App() {
     }
     const id = Date.now().toString();
     const fecha = new Date().toISOString();
-    setItems((prev) => [...prev, { id, tipo: modal.tipo, concepto: concepto.trim(), monto: v, fecha }]);
+    setItems(prev => [...prev, { id, tipo: modal.tipo, concepto: concepto.trim(), monto: v, fecha }]);
     setConcepto("");
     setMonto("");
     setModal({ ...modal, open: false });
     if (tab !== "historial") setTab("historial");
   };
 
-  const eliminar = (id) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  };
+  const eliminar = (id) => setItems(prev => prev.filter(i => i.id !== id));
 
   const limpiarTodo = () => {
     Alert.alert("Limpiar", "¿Borrar todos los movimientos?", [
@@ -65,8 +70,8 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={S.safe}>
-      <View style={S.container}>
+    <View style={[S.safe, { paddingTop: Platform.OS === "android" ? 36 : Math.max(8, insets.top) }]}>
+      <View style={[S.container, { paddingBottom: 110 + insets.bottom }]}>
         {/* Header */}
         <View style={S.header}>
           <Ionicons name="calendar-outline" size={24} color="#1b1b1b" />
@@ -75,8 +80,8 @@ export default function App() {
 
         {/* Buscar (mock UI) */}
         <View style={S.searchWrap}>
-          <Ionicons name="search" size={18} color="#9aa0a6" style={{ marginRight: 8 }} />
-          <TextInput placeholder="Buscar" placeholderTextColor="#9aa0a6" style={S.search} />
+          <Ionicons name="search" size={18} color="#555" style={{ marginRight: 8 }} />
+          <TextInput placeholder="Buscar" placeholderTextColor="#555" style={S.search} />
         </View>
 
         {/* Contenido por tab */}
@@ -108,7 +113,7 @@ export default function App() {
               <FlatList
                 data={items.slice().reverse()} // último primero
                 keyExtractor={(i) => i.id}
-                contentContainerStyle={{ paddingBottom: 80 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
                 renderItem={({ item }) => (
                   <View style={S.item}>
                     <View style={[S.badge, item.tipo === "pago" ? S.badgePago : S.badgeCobro]}>
@@ -118,9 +123,7 @@ export default function App() {
                       <Text style={S.itemConcepto}>{item.concepto}</Text>
                       <Text style={S.itemFecha}>{new Date(item.fecha).toLocaleString()}</Text>
                     </View>
-                    <Text style={S.itemMonto}>
-                      ${fmt(item.monto)}
-                    </Text>
+                    <Text style={S.itemMonto}>${fmt(item.monto)}</Text>
                     <TouchableOpacity onPress={() => eliminar(item.id)} style={{ marginLeft: 10 }}>
                       <Ionicons name="close-circle-outline" size={22} color="#a00" />
                     </TouchableOpacity>
@@ -134,7 +137,9 @@ export default function App() {
         {tab === "ajustes" && (
           <View>
             <Text style={S.sectionTitle}>Ajustes</Text>
-            <Text style={{ color: "#666", marginTop: 6 }}>Próximamente: categorías, exportar PDF/Excel, seguridad.</Text>
+            <Text style={{ color: "#666", marginTop: 6 }}>
+              Próximamente: categorías, exportar PDF/Excel, seguridad.
+            </Text>
           </View>
         )}
 
@@ -176,13 +181,13 @@ export default function App() {
         </Modal>
 
         {/* Tab bar */}
-        <View style={S.tabbar}>
+        <View style={[S.tabbar, { paddingBottom: 10 + insets.bottom }]}>
           <Tab icon="home-outline" label="Inicio" active={tab === "inicio"} onPress={() => setTab("inicio")} />
           <Tab icon="time-outline" label="Historial" active={tab === "historial"} onPress={() => setTab("historial")} />
           <Tab icon="settings-outline" label="Ajustes" active={tab === "ajustes"} onPress={() => setTab("ajustes")} />
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -196,8 +201,8 @@ const BigBtn = ({ label, color, onPress }) => (
 
 const Tab = ({ icon, label, active, onPress }) => (
   <TouchableOpacity onPress={onPress} style={S.tabItem} activeOpacity={0.8}>
-    <Ionicons name={icon} size={22} color={active ? "#111" : "#666"} />
-    <Text style={[S.tabLabel, active && { color: "#111", fontWeight: "600" }]}>{label}</Text>
+    <Ionicons name={icon} size={27} color="#555" />
+    <Text style={[S.tabLabel, { color: "#555", fontWeight: active ? "1000" : "400" }]}>{label}</Text>
   </TouchableOpacity>
 );
 
@@ -207,16 +212,16 @@ const fmt = (n) =>
 
 /* ───────────── estilos ───────────── */
 const S = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FAFAF7" },
-  container: { flex: 1, paddingHorizontal: 18, paddingTop: Platform.OS === "android" ? 36 : 8, paddingBottom: 66 },
+  safe: { flex: 1, backgroundColor: "#FCFCF8" },
+  container: { flex: 1, paddingHorizontal: 18 },
 
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
 
   searchWrap: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 12, height: 42,
-    borderRadius: 12, backgroundColor: "#F1F3F4", marginBottom: 14,
+    borderRadius: 12, backgroundColor: "#D6D9DD", marginBottom: 14,
   },
-  search: { flex: 1, color: "#1b1b1b", fontSize: 16 },
+  search: { flex: 1, color: "#555", fontSize: 16 },
 
   duoText: { fontSize: 18, color: "#1b1b1b", marginBottom: 14 },
 
@@ -255,10 +260,24 @@ const S = StyleSheet.create({
   btnTxt: { color: "#111", fontWeight: "700" },
 
   tabbar: {
-    position: "absolute", left: 0, right: 0, bottom: 0,
-    borderTopWidth: 1, borderTopColor: "#e5e5e0", backgroundColor: "#fff",
-    flexDirection: "row", justifyContent: "space-around", paddingTop: 8, paddingBottom: 10,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#D6D9DD",
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: 8,
+    borderTopWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  tabItem: { alignItems: "center", gap: 2, paddingHorizontal: 10 },
-  tabLabel: { fontSize: 12, color: "#666" },
+  tabItem: {
+    alignItems: "center",
+    justifyContent: "flex-end", // baja icono+texto dentro de la barra
+    gap: 2,
+    height: 56,
+    paddingHorizontal: 10,
+  },
+  tabLabel: { fontSize: 12 },
 });
