@@ -13,9 +13,19 @@ export default function HomeScreen({ navigation }) {
     <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
       {/* Header con título centrado */}
       <View style={s.header}>
-        <Ionicons name="calendar-outline" size={24} color="#1b1b1b" />
+        <Ionicons
+          name="calendar-outline"
+          size={24}
+          color="#1b1b1b"
+          onPress={() => navigation.navigate('Historial')}
+        />
         <Text style={s.title}>Ordénate</Text>
-        <Ionicons name="notifications-outline" size={24} color="#1b1b1b" />
+        <Ionicons
+          name="notifications-outline"
+          size={24}
+          color="#1b1b1b"
+          onPress={() => alert("Próximamente: recordatorios")}
+        />
       </View>
 
       {/* Buscar */}
