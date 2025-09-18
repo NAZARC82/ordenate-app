@@ -116,7 +116,7 @@ export default function HistoryChips() {
       ) : (
         <FlatList
           data={data.slice().reverse()}
-          keyExtractor={(i) => i.id}
+          keyExtractor={(i) => String(i.id)}
           contentContainerStyle={{ paddingBottom: 80 }}
           renderItem={({ item }) => (
             <TouchableOpacity

@@ -1,10 +1,11 @@
 // src/navigation/TabNavigator.js
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
-// PANTALLAS
 import HomeStack from './HomeStack';
-import HistoryChips from '../screens/HistoryChips';
+import CalendarScreen from '../screens/CalendarScreen';
+import HistoryScreen from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -12,25 +13,27 @@ const Tab = createBottomTabNavigator();
 export default function TabNavigator() {
   return (
     <Tab.Navigator
-      initialRouteName="Inicio"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: { backgroundColor: '#D6D9DD', height: 68, borderTopWidth: 0 },
-        tabBarLabelStyle: { fontSize: 12, marginBottom: 4 },
-        tabBarActiveTintColor: '#000',
-        tabBarInactiveTintColor: '#666',
-        tabBarIcon: ({ focused, color, size }) => {
-          let icon = 'home-outline';
-          if (route.name === 'Inicio')     icon = focused ? 'home'     : 'home-outline';
-          if (route.name === 'Historial')  icon = focused ? 'time'     : 'time-outline';
-          if (route.name === 'Ajustes')    icon = focused ? 'settings' : 'settings-outline';
-          return <Ionicons name={icon} size={size} color={color} />;
+        tabBarActiveTintColor: '#3E7D75',
+        tabBarInactiveTintColor: '#685344CC',
+        tabBarStyle: { backgroundColor: '#FCFCF8' },
+        tabBarIcon: ({ color, size }) => {
+          const icons = {
+            Home: 'home',
+            Almanaque: 'calendar',
+            Historial: 'time',
+            Settings: 'settings',
+          };
+          return <Ionicons name={icons[route.name]} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Inicio" component={HomeStack} />
-      <Tab.Screen name="Historial" component={HistoryChips} />
-      <Tab.Screen name="Ajustes" component={SettingsScreen} />
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Almanaque" component={CalendarScreen} />
+      <Tab.Screen name="Historial" component={HistoryScreen} />
+      <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
+

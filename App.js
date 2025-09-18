@@ -3,6 +3,7 @@ import TabNavigator from './src/navigation/TabNavigator';
 import { MovimientosProvider } from './src/state/MovimientosContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,6 +14,13 @@ Notifications.setNotificationHandler({
 });
 
 export default function App() {
+  useEffect(() => {
+    (async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') await Notifications.requestPermissionsAsync();
+    })();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <MovimientosProvider>
