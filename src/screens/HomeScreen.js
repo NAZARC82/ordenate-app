@@ -9,16 +9,25 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { resumen } = useMovimientos();
 
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const totalDebes = toNum(resumen?.debes);
+  const totalTeDeben = toNum(resumen?.teDeben);
+  const balance = totalTeDeben - totalDebes;
+
   return (
     <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
       {/* Header con título centrado */}
       <View style={s.header}>
-        <Ionicons
+        {/* Acceso rápido deshabilitado: ya existe tab "Almanaque" abajo */}
+        {/* <Ionicons
           name="calendar-outline"
           size={24}
           color="#1b1b1b"
           onPress={() => navigation.navigate('Historial')}
-        />
+        /> */}
         <Text style={s.title}>Ordénate</Text>
         <Ionicons
           name="notifications-outline"
@@ -36,18 +45,18 @@ export default function HomeScreen({ navigation }) {
 
       {/* Resumen */}
       <View style={s.summary}>
-  <Line label="Debes" value={fmtCurrency(resumen.debes)} />
-  <Line label="Te deben" value={fmtCurrency(resumen.teDeben)} />
+  <Line label="Debes" value={fmtCurrency(totalDebes)} />
+  <Line label="Te deben" value={fmtCurrency(totalTeDeben)} />
 <Line 
   label="Balance" 
-  value={fmtCurrency(resumen.balance)} 
-  color={resumen.balance >= 0 ? "green" : "red"} 
+  value={fmtCurrency(Number.isFinite(balance) ? balance : 0)} 
+  color={balance >= 0 ? "green" : "red"} 
 />
 </View>
 
 
-      <BigBtn label="Agregar Pago"  color="#DCE8FB" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "pago" })}/>
-      <BigBtn label="Agregar Cobro" color="#E7F7E9" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "cobro" })}/>
+      <BigBtn label="Agregar pago"  color="#DCE8FB" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "pago" })}/>
+      <BigBtn label="Agregar cobro" color="#E7F7E9" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "cobro" })}/>
       <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => alert("En breve")}/>
     </View>
   );

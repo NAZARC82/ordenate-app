@@ -17,15 +17,28 @@ export default function TabNavigator() {
         headerShown: false,
         tabBarActiveTintColor: '#3E7D75',
         tabBarInactiveTintColor: '#685344CC',
-        tabBarStyle: { backgroundColor: '#FCFCF8' },
+        // Mantener color y subir íconos/labels
+        safeAreaInsets: { bottom: 0 },     // no agregues extra-inset abajo
+        tabBarStyle: {
+          backgroundColor: '#DBD2C5',
+          borderTopColor: '#DBD2C5',
+          height: 64,          // un poco más alto para respirar
+          paddingTop: 4,
+          paddingBottom: 12,   // esto los eleva visualmente
+        },
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingBottom: 6,    // leve empujón hacia arriba
+        },
+        tabBarLabelStyle: {
+          marginTop: 0,
+          fontSize: 12,
+        },
         tabBarIcon: ({ color, size }) => {
-          const icons = {
-            Home: 'home',
-            Almanaque: 'calendar',
-            Historial: 'time',
-            Settings: 'settings',
-          };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          const icons = { Home: 'home', Almanaque: 'calendar', Historial: 'time', Settings: 'settings' };
+          const name = icons[route.name] || 'apps';
+          return <Ionicons name={name} size={26} color={color} />; // un toque más grandes
         },
       })}
     >

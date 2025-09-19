@@ -1,11 +1,16 @@
 // src/state/MovimientosContext.js
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, useEffect } from "react";
 
 const MovimientosContext = createContext();
+
+// Exportar el Context para uso directo con useContext
+export { MovimientosContext };
 
 export function MovimientosProvider({ children }) {
   // items: { id, tipo: 'pago'|'cobro', concepto, monto, fecha }
   const [items, setItems] = useState([]);
+
+  // Sin datos mock: iniciar vacío; Home debe mostrar 0s
 
   const addMovimiento = ({ tipo, concepto, monto }) => {
     const v = Number(String(monto).replace(",", "."));
@@ -25,6 +30,17 @@ export function MovimientosProvider({ children }) {
 
   const clearAll = () => setItems([]);
   const removeById = (id) => setItems(prev => prev.filter(i => i.id !== id));
+
+  const getMovimientosBetween = (desde, hasta) => {
+    const d0 = desde ? new Date(desde).getTime() : -Infinity;
+    const d1 = hasta ? new Date(hasta).getTime() : Infinity;
+    return items
+      .filter(m => {
+        const t = new Date(m.fecha).getTime();
+        return t >= d0 && t <= d1;
+      })
+      .sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+  };
 
   const resumen = useMemo(() => {
     const sum = (tipo) =>
@@ -61,6 +77,7 @@ export function MovimientosProvider({ children }) {
     <MovimientosContext.Provider
       value={{
         items, addMovimiento, clearAll, removeById, resumen,
+        getMovimientosBetween,
         remindersById, setReminderFor, clearReminderFor
       }}
     >

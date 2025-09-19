@@ -1,9 +1,9 @@
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TabNavigator from './src/navigation/TabNavigator';
 import { MovimientosProvider } from './src/state/MovimientosContext';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
-import { useEffect } from 'react';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -14,6 +14,7 @@ Notifications.setNotificationHandler({
 });
 
 export default function App() {
+  // si usás permisos de notificaciones, dejalos acá dentro
   useEffect(() => {
     (async () => {
       const { status } = await Notifications.getPermissionsAsync();
