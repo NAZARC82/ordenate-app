@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import TabNavigator from './src/navigation/TabNavigator';
 import { MovimientosProvider } from './src/state/MovimientosContext';
 import * as Notifications from 'expo-notifications';
@@ -23,12 +24,14 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <MovimientosProvider>
-        <NavigationContainer>
-          <TabNavigator />
-        </NavigationContainer>
-      </MovimientosProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <MovimientosProvider>
+          <NavigationContainer>
+            <TabNavigator />
+          </NavigationContainer>
+        </MovimientosProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
