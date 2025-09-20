@@ -4,11 +4,11 @@ import { Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HistoryPanel from '../components/History/HistoryPanel';
 
-export default function HistoryScreen() {
+export default function HistoryScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['top','left','right']}>
       <Text style={styles.title}>Historial</Text>
-      <HistoryPanel />
+      <HistoryPanel navigation={navigation} />
     </SafeAreaView>
   );
 }

@@ -1,18 +1,15 @@
-import React from "react";
+import React, { useContext, useMemo } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMovimientos } from "../state/MovimientosContext";
+import { MovimientosContext } from "../state/MovimientosContext";
 import { fmtCurrency } from "../utils/fmt";
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { resumen } = useMovimientos();
-
-  const toNum = (v) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
+  const { getResumen } = useContext(MovimientosContext);
+  const resumen = getResumen();
+  const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const totalDebes = toNum(resumen?.debes);
   const totalTeDeben = toNum(resumen?.teDeben);
   const balance = totalTeDeben - totalDebes;

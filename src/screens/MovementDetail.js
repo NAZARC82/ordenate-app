@@ -1,24 +1,28 @@
 // src/screens/MovementDetail.js
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Dimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { useMovimientos } from '../state/MovimientosContext';
+import { MovimientosContext } from '../state/MovimientosContext';
 import { fmtCurrency, fmtDateTime } from '../utils/fmt';
 import ReminderSheet from '../components/ReminderSheet';
 
 const H = Dimensions.get('window').height;
 
 export default function MovementDetail() {
-  const insets = useSafeAreaInsets();
   const route = useRoute();
   const nav = useNavigation();
-  const { id } = route.params || {};
-  const { items /* <- si luego quieres guardar avisos, agrega una action aquí */ } = useMovimientos();
+  const { movimiento } = route.params || {}; // Cambio: usar 'movimiento' en lugar de 'id'
+  const { movimientos } = useContext(MovimientosContext);
 
-  const item = useMemo(() => items.find(i => i.id === id), [items, id]);
+  // Si viene 'movimiento' directo, lo usamos; si no, buscamos por ID
+  const item = useMemo(() => {
+    if (movimiento) return movimiento;
+    // Fallback para compatibilidad si viene 'id'
+    const { id } = route.params || {};
+    return movimientos?.find(i => i.id === id) || null;
+  }, [movimiento, movimientos, route.params]);
 
   // Estado de "Desde/Hasta" elegido para el aviso
   const [edge, setEdge] = useState('to'); // 'from' | 'to'
@@ -35,7 +39,7 @@ export default function MovementDetail() {
 
   if (!item) {
     return (
-      <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
+      <View style={s.container}>
         <Text>Movimiento no encontrado.</Text>
       </View>
     );
@@ -53,25 +57,33 @@ export default function MovementDetail() {
   const closeSheet = () => setReminderOpen(false);
 
   const handleSave = (finalDate) => {
-    if (sheetOpen === 'from') setFromReminder(finalDate);
-    if (sheetOpen === 'to')   setToReminder(finalDate);
+    if (edge === 'from') setFromReminder(finalDate);
+    if (edge === 'to') setToReminder(finalDate);
     // (opcional) aquí podés programar la notificación con expo-notifications
     closeSheet();
   };
 
+  // Helper para mostrar nota limpia (igual que en HistoryPanel)
+  const displayNota = (m) => (m.nota && m.nota.trim()) || (m.concepto && m.concepto.trim()) || 'Movimiento';
+  
+  // Fecha consistente en formato dd/mm/aaaa
+  const dateLabel = item.fecha
+    ? new Date(item.fecha).toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit', year:'numeric' })
+    : '—';
+
   return (
-    <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
-      <Text style={s.title}>{item.concepto}</Text>
+    <View style={s.container}>
+      <Text style={s.title}>{displayNota(item)}</Text>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         bounces
         showsVerticalScrollIndicator={false}
       >
         {/* Tarjeta resumen */}
         <View style={s.card}>
           <Text style={s.muted}>Tipo: {item.tipo === 'pago' ? 'Pago' : 'Cobro'}</Text>
-          <Text style={s.muted}>Fecha: {fmtDateTime(new Date(item.fecha))}</Text>
+          <Text style={s.muted}>Fecha: {dateLabel}</Text>
           <Text style={s.amount}>{fmtCurrency(item.monto)}</Text>
         </View>
 
@@ -145,7 +157,7 @@ const chip = () => ({
 const chipTxt = () => ({ fontWeight: '600', color: '#222' });
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAF7', paddingHorizontal: 18 },
+  container: { flex: 1, backgroundColor: '#FAFAF7', paddingHorizontal: 18, paddingTop: 12 },
   title: { fontSize: 32, fontWeight: '800', color: '#111', marginBottom: 10 },
 
   card: {

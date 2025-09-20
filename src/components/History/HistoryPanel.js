@@ -1,16 +1,20 @@
 import React, { useMemo, useState, useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { MovimientosContext } from '../../state/MovimientosContext';
 import ManualDateInput from '../Calendar/ManualDateInput';
 import { Ionicons } from '@expo/vector-icons';
 
 // Guardia defensiva (opcional, útil mientras probás)
-export default function HistoryPanel() {
+export default function HistoryPanel(props) {
+  const { navigation } = props; // si el componente recibe props
   const ctx = useContext(MovimientosContext);
+  
   if (!ctx) {
     return <Text style={{ color: '#c62828' }}>Error: MovimientosProvider no envuelve la app.</Text>;
   }
-  const { getMovimientosBetween } = ctx;
+  
+  const { removeMovimiento, getMovimientosBetween } = ctx;
   // filtros globales
   const [desde, setDesde] = useState(null);
   const [hasta, setHasta] = useState(null);
@@ -22,11 +26,12 @@ export default function HistoryPanel() {
   // modal para filtro global
   const [globalModal, setGlobalModal] = useState({ visible: false, d: null, h: null });
 
+  const normalize = (s) => (s ?? '').toString().trim().toLowerCase();
   const data = useMemo(() => {
     const base = getMovimientosBetween(applied.desde, applied.hasta);
-    if (!applied.persona) return base;
-    // usamos item.concepto como "persona" (ajusta a tu campo real si difiere)
-    return base.filter(m => (m.concepto || '').toLowerCase() === applied.persona.toLowerCase());
+    const persona = normalize(applied.persona);
+    if (!persona) return base;
+    return base.filter(m => normalize(m.nota || m.concepto) === persona);
   }, [applied, getMovimientosBetween]);
 
   const apply = () => setApplied({ ...applied, desde, hasta });
@@ -76,36 +81,60 @@ export default function HistoryPanel() {
     setPersonModal({ visible: false, nombre: null, d: null, h: null });
   };
 
+  const confirmDelete = (id) => {
+    Alert.alert('Eliminar movimiento', 'Esta acción no se puede deshacer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: () => removeMovimiento(id) },
+    ]);
+  };
+
+  const renderRightActions = (item) => (
+    <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.swipeDelete}>
+      <Text style={styles.swipeDeleteText}>Eliminar</Text>
+    </TouchableOpacity>
+  );
+
+  const displayNota = (m) => (m.nota && m.nota.trim()) || (m.concepto && m.concepto.trim()) || '-';
   const renderItem = ({ item }) => {
-    const conceptoLower = (item.concepto || '').toLowerCase();
-    const isHighlighted = applied.persona && conceptoLower === applied.persona.toLowerCase();
+    const notaLower = normalize(item.nota || item.concepto);
+    const isHighlighted = applied.persona && notaLower === normalize(applied.persona);
 
     return (
-      <TouchableOpacity
-        style={[styles.row, isHighlighted && styles.rowHighlighted]}
-        onPress={() => openPersonModal(item.concepto)}
-      >
-        <View style={styles.rowLeft}>
-          <Text style={[styles.rowTipo, isHighlighted && styles.textHighlighted]}>
-            {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
-          </Text>
-          <Text style={[styles.rowNota, isHighlighted && styles.textHighlighted]}>
-            {item.concepto || '-'}
-          </Text>
-        </View>
-        <View style={styles.rowRight}>
-          <Text style={[
-            styles.rowMonto, 
-            item.tipo === 'pago' ? styles.montoNeg : styles.montoPos,
-            isHighlighted && styles.textHighlighted
-          ]}>
-            {`${item.tipo === 'pago' ? '-' : '+'}$ ${item.monto}`}
-          </Text>
-          <Text style={[styles.rowFecha, isHighlighted && styles.textHighlighted]}>
-            {new Date(item.fecha).toLocaleDateString()}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      <Swipeable renderRightActions={() => renderRightActions(item)}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => navigation?.navigate?.('MovementDetail', { movimiento: item })}
+          style={[styles.row, isHighlighted && styles.rowHighlighted]}
+        >
+          <View style={styles.rowLeft}>
+            <Text style={[styles.rowTipo, isHighlighted && styles.textHighlighted]}>
+              {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nombre = displayNota(item);
+                if (nombre === '-') return; // no abrir modal si no hay nombre válido
+                setPersonModal({ visible: true, nombre, d: null, h: null });
+              }}>
+              <Text style={[styles.rowNota, styles.rowNotaBtn, isHighlighted && styles.textHighlighted]}>
+                {displayNota(item)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.rowRight}>
+            <Text style={[
+              styles.rowMonto, 
+              item.tipo === 'pago' ? styles.montoNeg : styles.montoPos,
+              isHighlighted && styles.textHighlighted
+            ]}>
+              {`${item.tipo === 'pago' ? '-' : '+'}$ ${item.monto}`}
+            </Text>
+            <Text style={[styles.rowFecha, isHighlighted && styles.textHighlighted]}>
+              {new Date(item.fecha).toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit', year:'numeric' })}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
@@ -338,6 +367,10 @@ const styles = StyleSheet.create({
   rowRight: { alignItems: 'flex-end' },
   rowTipo: { color: '#4D3527', fontWeight: '700' },
   rowNota: { color: '#444' },
+  rowNotaBtn: { 
+    textDecorationLine: 'underline',
+    textDecorationColor: '#3E7D75',
+  },
   rowMonto: { fontWeight: '700' },
   montoPos: { color: '#2e7d32' },
   montoNeg: { color: '#c62828' },
@@ -397,5 +430,34 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'center',
     flexWrap: 'wrap',
+  },
+  
+  // Swipe actions
+  swipeDelete: {
+    backgroundColor: '#C62828',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 88,
+    height: '100%',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  swipeDeleteText: { 
+    color: '#FFF', 
+    fontWeight: '700' 
+  },
+  deleteAction: {
+    backgroundColor: '#dc3545',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginVertical: 8,
+  },
+  deleteText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });

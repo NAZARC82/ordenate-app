@@ -7,34 +7,34 @@ const MovimientosContext = createContext();
 export { MovimientosContext };
 
 export function MovimientosProvider({ children }) {
-  // items: { id, tipo: 'pago'|'cobro', concepto, monto, fecha }
-  const [items, setItems] = useState([]);
+  // movimientos: { id, tipo: 'pago'|'cobro', nota, monto, fecha }
+  const [movimientos, setMovimientos] = useState([]);
 
   // Sin datos mock: iniciar vacío; Home debe mostrar 0s
 
-  const addMovimiento = ({ tipo, concepto, monto }) => {
-    const v = Number(String(monto).replace(",", "."));
-    if (!concepto?.trim() || !isFinite(v) || v <= 0) return false;
-    setItems(prev => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        tipo,
-        concepto: concepto.trim(),
-        monto: v,
-        fecha: new Date().toISOString(),
-      },
-    ]);
-    return true;
+  const addMovimiento = ({ tipo, monto, fecha, nota }) => {
+    const id = String(Date.now());
+    const nMonto = Number(monto);
+    const safeMonto = Number.isFinite(nMonto) ? nMonto : 0;
+    const iso = fecha ? new Date(fecha).toISOString() : new Date().toISOString();
+    const cleanNota = (nota || '').trim();
+    const item = {
+      id,
+      tipo: tipo === 'cobro' ? 'cobro' : 'pago',
+      monto: safeMonto,
+      fecha: iso,
+      nota: cleanNota || null,
+    };
+    setMovimientos(prev => [item, ...prev]);
   };
 
-  const clearAll = () => setItems([]);
-  const removeById = (id) => setItems(prev => prev.filter(i => i.id !== id));
+  const clearAll = () => setMovimientos([]);
+  const removeById = (id) => setMovimientos(prev => prev.filter(i => i.id !== id));
 
   const getMovimientosBetween = (desde, hasta) => {
     const d0 = desde ? new Date(desde).getTime() : -Infinity;
     const d1 = hasta ? new Date(hasta).getTime() : Infinity;
-    return items
+    return movimientos
       .filter(m => {
         const t = new Date(m.fecha).getTime();
         return t >= d0 && t <= d1;
@@ -44,9 +44,18 @@ export function MovimientosProvider({ children }) {
 
   const resumen = useMemo(() => {
     const sum = (tipo) =>
-      items.filter(i => i.tipo === tipo).reduce((a, b) => a + Number(b.monto || 0), 0);
+      movimientos.filter(i => i.tipo === tipo).reduce((a, b) => a + Number(b.monto || 0), 0);
     return { debes: sum("pago"), teDeben: sum("cobro") };
-  }, [items]);
+  }, [movimientos]);
+
+  const getResumen = () => {
+    let debes = 0, teDeben = 0;
+    for (const m of movimientos) {
+      const v = Number(m.monto) || 0;
+      if (m.tipo === 'pago') debes += v; else teDeben += v;
+    }
+    return { debes, teDeben, balance: teDeben - debes };
+  };
 
   // ─── Avisos por movimiento ───
   // { [id]: { from?: { date: Date, time: Date, leadMin: number }, to?: {...} } }
@@ -76,8 +85,11 @@ export function MovimientosProvider({ children }) {
   return (
     <MovimientosContext.Provider
       value={{
-        items, addMovimiento, clearAll, removeById, resumen,
-        getMovimientosBetween,
+        movimientos, addMovimiento, clearAll, removeById, resumen,
+        getMovimientosBetween, getResumen,
+        removeMovimiento: (id) => {
+          setMovimientos(prev => prev.filter(m => m.id !== id));
+        },
         remindersById, setReminderFor, clearReminderFor
       }}
     >
