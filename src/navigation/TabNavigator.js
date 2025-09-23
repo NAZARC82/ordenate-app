@@ -4,8 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeStack from './HomeStack';
-import CalendarScreen from '../screens/CalendarScreen';
-import HistoryScreen from '../screens/HistoryScreen';
+import CalendarStack from './CalendarStack';
+import HistoryStack from './HistoryStack';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -43,8 +43,8 @@ export default function TabNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={HomeStack} />
-      <Tab.Screen name="Almanaque" component={CalendarScreen} />
-      <Tab.Screen name="Historial" component={HistoryScreen} />
+      <Tab.Screen name="Almanaque" component={CalendarStack} />
+      <Tab.Screen name="Historial" component={HistoryStack} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
