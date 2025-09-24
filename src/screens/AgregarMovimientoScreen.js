@@ -1,8 +1,9 @@
 // src/screens/AgregarMovimientoScreen.js
-import React, { useContext, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useContext, useState, useEffect } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard, InputAccessoryView } from 'react-native';
 import { MovimientosContext } from '../state/MovimientosContext';
 import ManualDateInput from '../components/Calendar/ManualDateInput';
+import { getEstadoColor } from '../utils/estadoColor';
 
 export default function AgregarMovimientoScreen({ navigation, route }) {
   const { addMovimiento } = useContext(MovimientosContext);
@@ -11,7 +12,22 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
   const [tipo, setTipo] = useState(initialTipo);       // 'pago' | 'cobro'
   const [monto, setMonto] = useState('');
   const [nota, setNota] = useState('');
-  const [fecha, setFecha] = useState(null);            // ISO o null
+  const [fecha, setFecha] = useState(() => {
+    // Fecha por defecto: hoy al mediodía UTC
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0).toISOString();
+  });
+  const [estado, setEstado] = useState('pendiente');   // 'pendiente' | 'pronto' | 'urgente' | 'pagado'
+
+  // Leer params opcionales para preselección
+  useEffect(() => {
+    if (route?.params?.estado) {
+      setEstado(route.params.estado);
+    }
+    if (route?.params?.fechaISO) {
+      setFecha(route.params.fechaISO);
+    }
+  }, [route?.params]);
 
   const onGuardar = () => {
     const nMonto = Number(monto);
@@ -19,13 +35,45 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
       Alert.alert('Monto inválido', 'Ingresa un monto numérico mayor a 0.');
       return;
     }
-    addMovimiento({ tipo, monto: nMonto, fecha, nota });
-    navigation.goBack(); // vuelve a Home
+    
+    // Validar estado
+    if (!['pendiente', 'pronto', 'urgente', 'pagado'].includes(estado)) {
+      Alert.alert('Error', 'Estado inválido seleccionado.');
+      return;
+    }
+    
+    const result = addMovimiento({ tipo, monto: nMonto, fecha, nota, estado });
+    if (result.success) {
+      navigation.goBack(); // vuelve a Home
+    } else {
+      Alert.alert('Error', result.error || 'No se pudo guardar el movimiento');
+    }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <>
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID="notaAccessoryAgregarMovimiento">
+          <View style={styles.accessoryContainer}>
+            <TouchableOpacity 
+              style={styles.accessoryButton} 
+              onPress={Keyboard.dismiss}
+            >
+              <Text style={styles.accessoryButtonText}>Hecho</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
+      
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
+        <ScrollView 
+          contentContainerStyle={styles.container} 
+          keyboardShouldPersistTaps="handled"
+          onStartShouldSetResponder={() => {
+            Keyboard.dismiss();
+            return false;
+          }}
+        >
         <Text style={styles.title}>Agregar movimiento</Text>
 
         <Text style={styles.label}>Tipo</Text>
@@ -50,13 +98,42 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
         <Text style={styles.label}>Fecha</Text>
         <ManualDateInput value={fecha} onChange={setFecha} placeholder="dd/mm/aaaa" />
 
-        <Text style={styles.label}>Detalle / Persona</Text>
+        <Text style={styles.label}>Nota (opcional)</Text>
         <TextInput
           value={nota}
           onChangeText={setNota}
           placeholder="Ej: Juan / Luz / Cliente A"
           style={[styles.input, { height: 44 }]}
+          returnKeyType="done"
+          enablesReturnKeyAutomatically={true}
+          onSubmitEditing={Keyboard.dismiss}
+          inputAccessoryViewID={Platform.OS === 'ios' ? 'notaAccessoryAgregarMovimiento' : undefined}
         />
+
+        <Text style={styles.label}>Estado</Text>
+        <View style={styles.estadoContainer}>
+          {['pendiente', 'pronto', 'urgente', 'pagado'].map(est => (
+            <TouchableOpacity
+              key={est}
+              style={[
+                styles.estadoChip,
+                estado === est && styles.estadoChipActive,
+                { backgroundColor: getEstadoColor(est) }
+              ]}
+              onPress={() => {
+                setEstado(est);
+                Keyboard.dismiss();
+              }}
+            >
+              <Text style={[
+                styles.estadoText,
+                estado === est && styles.estadoTextActive
+              ]}>
+                {est}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <View style={styles.footer}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.btn, styles.btnGhost]}>
@@ -68,6 +145,7 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -95,6 +173,30 @@ const styles = StyleSheet.create({
   segBtnActive: { backgroundColor: '#3E7D75' },
   segText: { color: '#4D3527', fontWeight: '600' },
   segTextActive: { color: '#F5F1E8' },
+  estadoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  estadoChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  estadoChipActive: {
+    // Color se maneja dinámicamente por getEstadoColor
+  },
+  estadoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  estadoTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   footer: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
   btn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   btnGhost: { backgroundColor: '#EDE6DD' },
@@ -102,4 +204,24 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: '#3E7D75' },
   btnPrimaryText: { color: '#F5F1E8' },
   btnText: { fontSize: 16, fontWeight: '600' },
+  accessoryContainer: {
+    backgroundColor: '#F7F7F7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  accessoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#3E7D75',
+    borderRadius: 8,
+  },
+  accessoryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

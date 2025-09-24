@@ -62,3 +62,75 @@ export const getMonthString = (isoString) => {
     return '';
   }
 };
+
+/**
+ * Parse user date input with implicit current year
+ * @param {string} input - User input like "25/09" or "25/09/2025"
+ * @param {Date} today - Reference date for current year (default: new Date())
+ * @returns {Object} - {dd, mm, yyyy, iso, error, displayValue}
+ */
+export const parseFechaUsuario = (input, today = new Date()) => {
+  if (!input || typeof input !== 'string') {
+    return { error: 'Fecha requerida' };
+  }
+
+  // Clean input - only digits and slashes
+  const cleanInput = input.replace(/[^\d\/]/g, '');
+  
+  // Try patterns: dd/mm or dd/mm/yyyy
+  const shortPattern = /^(\d{1,2})\/(\d{1,2})$/;
+  const fullPattern = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+  
+  let dd, mm, yyyy;
+  
+  const shortMatch = shortPattern.exec(cleanInput);
+  const fullMatch = fullPattern.exec(cleanInput);
+  
+  if (fullMatch) {
+    // Full date provided
+    [, dd, mm, yyyy] = fullMatch.map(Number);
+  } else if (shortMatch) {
+    // Only day/month provided - use current year
+    [, dd, mm] = shortMatch.map(Number);
+    yyyy = today.getFullYear();
+  } else {
+    return { error: 'Formato inválido. Use dd/mm o dd/mm/aaaa' };
+  }
+
+  // Validate ranges
+  if (dd < 1 || dd > 31) {
+    return { error: 'Día debe estar entre 1 y 31' };
+  }
+  
+  if (mm < 1 || mm > 12) {
+    return { error: 'Mes debe estar entre 1 y 12' };
+  }
+  
+  if (yyyy < 1900 || yyyy > 2100) {
+    return { error: 'Año debe estar entre 1900 y 2100' };
+  }
+
+  // Create date and validate it exists (handles leap years, etc.)
+  const testDate = new Date(yyyy, mm - 1, dd, 12, 0, 0); // Local time for validation
+  
+  if (testDate.getFullYear() !== yyyy || 
+      testDate.getMonth() !== mm - 1 || 
+      testDate.getDate() !== dd) {
+    return { error: 'Fecha no válida (verifique día del mes)' };
+  }
+
+  // Create ISO string at UTC noon (use Date.UTC to avoid timezone offset)
+  const iso = new Date(Date.UTC(yyyy, mm - 1, dd, 12, 0, 0)).toISOString();
+  
+  // Format display value
+  const displayValue = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${yyyy}`;
+  
+  return {
+    dd,
+    mm, 
+    yyyy,
+    iso,
+    displayValue,
+    error: null
+  };
+};

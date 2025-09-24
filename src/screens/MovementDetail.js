@@ -1,9 +1,10 @@
 // src/screens/MovementDetail.js
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Platform, Keyboard, InputAccessoryView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
+import { getEstadoColor } from '../utils/estadoColor';
 
 export default function MovementDetail() {
   const route = useRoute();
@@ -106,10 +107,31 @@ export default function MovementDetail() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{getTitle()}</Text>
+    <>
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID="notaAccessoryMovementDetail">
+          <View style={styles.accessoryContainer}>
+            <TouchableOpacity 
+              style={styles.accessoryButton} 
+              onPress={Keyboard.dismiss}
+            >
+              <Text style={styles.accessoryButtonText}>Hecho</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
       
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <View style={styles.container}>
+        <Text style={styles.title}>{getTitle()}</Text>
+        
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onStartShouldSetResponder={() => {
+            Keyboard.dismiss();
+            return false;
+          }}
+        >
         {/* Tipo */}
         <View style={styles.section}>
           <Text style={styles.label}>Tipo</Text>
@@ -155,6 +177,11 @@ export default function MovementDetail() {
             placeholder="Descripción del movimiento"
             multiline
             numberOfLines={3}
+            returnKeyType="done"
+            enablesReturnKeyAutomatically={true}
+            blurOnSubmit={true}
+            onSubmitEditing={Keyboard.dismiss}
+            inputAccessoryViewID={Platform.OS === 'ios' ? 'notaAccessoryMovementDetail' : undefined}
           />
         </View>
 
@@ -168,9 +195,12 @@ export default function MovementDetail() {
                 style={[
                   styles.estadoButton,
                   estado === est && styles.estadoButtonActive,
-                  { backgroundColor: getEstadoColor(est, estado === est) }
+                  { backgroundColor: getEstadoColor(est, { selected: estado === est }) }
                 ]}
-                onPress={() => setEstado(est)}
+                onPress={() => {
+                  setEstado(est);
+                  Keyboard.dismiss();
+                }}
               >
                 <Text style={[
                   styles.estadoText,
@@ -208,18 +238,9 @@ export default function MovementDetail() {
         )}
       </View>
     </View>
+    </>
   );
 }
-
-const getEstadoColor = (estado, isActive) => {
-  const colors = {
-    urgente: isActive ? '#FF4444' : '#FFE0E0',
-    pronto: isActive ? '#FFA500' : '#FFF0E0',
-    pendiente: isActive ? '#FFD700' : '#FFFBE0',
-    pagado: isActive ? '#4CAF50' : '#E8F5E8'
-  };
-  return colors[estado] || '#F0F0F0';
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -330,6 +351,26 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  accessoryContainer: {
+    backgroundColor: '#F7F7F7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  accessoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#3E7D75',
+    borderRadius: 8,
+  },
+  accessoryButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

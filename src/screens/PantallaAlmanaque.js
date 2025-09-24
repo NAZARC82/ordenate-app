@@ -2,11 +2,35 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar } from 'react-native-calendars';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
 import { getDateString, sameDay, getTodayString } from '../utils/date';
 import { getDayStateMap, getColorForEstado } from '../utils/estadoDominante';
+import { getEstadoColor } from '../utils/estadoColor';
+
+// Configurar el calendario en español
+LocaleConfig.locales['es'] = {
+  monthNames: [
+    'Enero',
+    'Febrero', 
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre'
+  ],
+  monthNamesShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+  dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+  today: "Hoy"
+};
+LocaleConfig.defaultLocale = 'es';
 
 export default function PantallaAlmanaque() {
   const navigation = useNavigation();
@@ -25,7 +49,7 @@ export default function PantallaAlmanaque() {
     return getDayStateMap(movimientos, getDateString);
   }, [movimientos]);
 
-  // Optimized markedDates with custom text colors (no dots)
+  // Optimized markedDates with custom text colors for day numbers (no dots)
   const markedDates = useMemo(() => {
     const marked = {};
     const today = getTodayString();
@@ -36,41 +60,55 @@ export default function PantallaAlmanaque() {
       const isSelected = selectedDay === dateKey;
       const isToday = dateKey === today;
       
-      // Para días seleccionados: usar color del estado si existe, sino blanco
-      // Para días no seleccionados: usar color normal del estado
-      let textColor;
+      // Get base color for the state
+      const estadoColor = getEstadoColor(estadoDominante);
+      
+      let customStyle = {};
+      
       if (isSelected) {
-        textColor = estadoDominante ? getColorForEstado(estadoDominante, true) : '#FFFFFF';
-      } else {
-        textColor = getColorForEstado(estadoDominante, false);
+        // Selected day: maintain selection background but preserve state color for text
+        customStyle = {
+          text: {
+            color: '#FFFFFF', // White text for selected state for contrast
+            fontWeight: '700'
+          },
+          container: {
+            backgroundColor: '#3E7D75', // Selection background color
+            borderRadius: 16
+          }
+        };
+      } else if (estadoDominante) {
+        // Day with movements: color the entire day number
+        customStyle = {
+          text: {
+            color: estadoColor,
+            fontWeight: '700', // Make it bold for visibility
+            fontSize: 16 // Slightly larger for emphasis
+          },
+          container: {
+            backgroundColor: 'rgba(255,255,255,0)', // Transparent background
+            borderRadius: 16
+          }
+        };
       }
       
-      marked[dateKey] = {
-        customStyles: {
-          text: {
-            color: textColor,
-            fontWeight: isSelected || isToday ? '700' : '600'
-          },
-          container: isSelected ? {
-            backgroundColor: '#3E7D75',
-            borderRadius: 16
-          } : {}
-        }
-      };
+      // Apply custom style if we have one
+      if (Object.keys(customStyle).length > 0) {
+        marked[dateKey] = { customStyles: customStyle };
+      }
     });
     
-    // Mark selected day without movements (preserve today color if applicable)
+    // Mark selected day without movements (preserve selection style)
     if (selectedDay && !marked[selectedDay]) {
       const isToday = selectedDay === today;
       marked[selectedDay] = {
         customStyles: {
           text: {
-            // Si es hoy: mantener verde de tema, sino blanco para contraste
-            color: isToday ? '#3E7D75' : '#FFFFFF',
+            color: '#FFFFFF', // White text for contrast
             fontWeight: '700'
           },
           container: {
-            backgroundColor: isToday ? 'rgba(62, 125, 117, 0.2)' : '#3E7D75',
+            backgroundColor: '#3E7D75', // Selection background
             borderRadius: 16
           }
         }
@@ -195,6 +233,7 @@ export default function PantallaAlmanaque() {
           onDayPress={onDayPress}
           markedDates={markedDates}
           markingType={'custom'}
+          locale={'es'}
           theme={{
             backgroundColor: '#FFFFFF',
             calendarBackground: '#FFFFFF',
@@ -243,16 +282,6 @@ export default function PantallaAlmanaque() {
     </SafeAreaView>
   );
 }
-
-const getEstadoColor = (estado) => {
-  const colors = {
-    urgente: '#FF4444',
-    pronto: '#FFA500', 
-    pendiente: '#FFD700',
-    pagado: '#4CAF50'
-  };
-  return colors[estado] || '#CCCCCC';
-};
 
 const styles = StyleSheet.create({
   container: { 

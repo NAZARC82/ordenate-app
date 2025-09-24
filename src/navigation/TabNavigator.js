@@ -36,16 +36,16 @@ export default function TabNavigator() {
           fontSize: 12,
         },
         tabBarIcon: ({ color, size }) => {
-          const icons = { Home: 'home', Almanaque: 'calendar', Historial: 'time', Settings: 'settings' };
+          const icons = { Inicio: 'home', Almanaque: 'calendar', Historial: 'time', Ajustes: 'settings' };
           const name = icons[route.name] || 'apps';
           return <Ionicons name={name} size={26} color={color} />; // un toque más grandes
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Inicio" component={HomeStack} />
       <Tab.Screen name="Almanaque" component={CalendarStack} />
       <Tab.Screen name="Historial" component={HistoryStack} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Ajustes" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }

@@ -1,10 +1,10 @@
-// src/screens/PantallaHistorial.js
 import React, { useMemo, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
 import { getDateString } from '../utils/date';
+import { getEstadoColor } from '../utils/estadoColor';
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
@@ -51,16 +51,6 @@ export default function PantallaHistorial() {
     } catch (error) {
       return 'Fecha inválida';
     }
-  };
-
-  const getEstadoColor = (estado) => {
-    const colors = {
-      urgente: '#FF4444',
-      pronto: '#FFA500', 
-      pendiente: '#FFD700',
-      pagado: '#4CAF50'
-    };
-    return colors[estado] || '#CCCCCC';
   };
 
   const handleEditar = (item) => {

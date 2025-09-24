@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { parseFechaUsuario } from '../../utils/date';
 
 function toDisplay(iso) {
   if (!iso) return '';
@@ -13,65 +14,80 @@ function toDisplay(iso) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function toISO(ddmmyyyy) {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(ddmmyyyy);
-  if (!m) return null;
-  const [_, dd, mm, yyyy] = m;
-  const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-  if (isNaN(d) || d.getFullYear() != Number(yyyy) || d.getMonth() != Number(mm) - 1 || d.getDate() != Number(dd)) {
-    return null;
-  }
-  return d.toISOString();
-}
-
 export default function ManualDateInput({ value, onChange, placeholder = 'dd/mm/aaaa' }) {
   const [text, setText] = useState(toDisplay(value));
   const [invalid, setInvalid] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     setText(toDisplay(value));
     setInvalid(false);
+    setErrorMessage('');
   }, [value]);
 
   const onChangeText = (t) => {
-    // solo dígitos y /
-    t = t.replace(/[^\d]/g, '');
-    // auto slash
-    if (t.length > 2) t = `${t.slice(0,2)}/${t.slice(2)}`;
-    if (t.length > 5) t = `${t.slice(0,5)}/${t.slice(5,9)}`;
+    // Allow digits and slashes
+    t = t.replace(/[^\d\/]/g, '');
+    
+    // Auto-format slashes
+    if (t.length > 2 && t[2] !== '/') t = `${t.slice(0,2)}/${t.slice(2)}`;
+    if (t.length > 5 && t[5] !== '/') t = `${t.slice(0,5)}/${t.slice(5)}`;
+    
+    // Limit length
     t = t.slice(0, 10);
+    
     setText(t);
     setInvalid(false);
+    setErrorMessage('');
   };
 
   const commit = () => {
-    if (!text) { onChange?.(null); setInvalid(false); return; }
-    const iso = toISO(text);
-    if (iso) { onChange?.(iso); setInvalid(false); }
-    else { setInvalid(true); }
+    if (!text.trim()) { 
+      onChange?.(null); 
+      setInvalid(false);
+      setErrorMessage('');
+      return; 
+    }
+    
+    const result = parseFechaUsuario(text);
+    if (result.error) {
+      setInvalid(true);
+      setErrorMessage(result.error);
+    } else {
+      // Update text to show complete format
+      setText(result.displayValue);
+      onChange?.(result.iso);
+      setInvalid(false);
+      setErrorMessage('');
+    }
   };
 
   const clear = () => { setText(''); onChange?.(null); setInvalid(false); };
 
   return (
-    <View style={[styles.wrap, invalid && styles.wrapInvalid]}>
-      <TextInput
-        value={text}
-        onChangeText={onChangeText}
-        onBlur={commit}
-        placeholder={placeholder}
-        keyboardType="number-pad"
-        style={styles.input}
-        returnKeyType="done"
-        onSubmitEditing={commit}
-        maxLength={10}
-      />
-      {text ? (
-        <TouchableOpacity onPress={clear} hitSlop={8}>
-          <Ionicons name="close" size={18} color="#4D3527" />
-        </TouchableOpacity>
-      ) : (
-        <Ionicons name="calendar" size={18} color="#4D3527" />
+    <View>
+      <View style={[styles.wrap, invalid && styles.wrapInvalid]}>
+        <TextInput
+          value={text}
+          onChangeText={onChangeText}
+          onBlur={commit}
+          placeholder={placeholder}
+          keyboardType="number-pad"
+          style={styles.input}
+          returnKeyType="done"
+          onSubmitEditing={commit}
+          maxLength={10}
+        />
+        {text ? (
+          <TouchableOpacity onPress={clear} hitSlop={8}>
+            <Ionicons name="close" size={18} color="#4D3527" />
+          </TouchableOpacity>
+        ) : (
+          <Ionicons name="calendar" size={18} color="#4D3527" />
+        )}
+      </View>
+      {errorMessage && (
+        <Text style={styles.errorText}>{errorMessage}</Text>
       )}
     </View>
   );
@@ -91,4 +107,10 @@ const styles = StyleSheet.create({
   },
   wrapInvalid: { borderColor: '#C62828' },
   input: { flex: 1, color: '#4D3527', fontSize: 16, marginRight: 8 },
+  errorText: {
+    fontSize: 12,
+    color: '#C62828',
+    marginTop: 4,
+    marginLeft: 4,
+  },
 });

@@ -101,20 +101,36 @@ export function MovimientosProvider({ children }) {
     return { total, pagado, falta };
   }, [movimientos]);
 
+  // Totales para Inicio - excluye movimientos pagados según contrato
+  const totalesInicio = useMemo(() => {
+    // Estados activos (no pagados): pendiente, pronto, urgente
+    const movimientosActivos = movimientos.filter(m => 
+      m.estado && ['pendiente', 'pronto', 'urgente'].includes(m.estado)
+    );
+    
+    let debes = 0, teDeben = 0;
+    for (const m of movimientosActivos) {
+      const v = Number(m.monto) || 0;
+      if (m.tipo === 'pago') {
+        debes += v;
+      } else if (m.tipo === 'cobro') {
+        teDeben += v;
+      }
+    }
+    
+    const balance = teDeben - debes;
+    return { debes, teDeben, balance };
+  }, [movimientos]);
+
+  // Resumen legacy (mantener para compatibilidad)
   const resumen = useMemo(() => {
     const sum = (tipo) =>
       movimientos.filter(i => i.tipo === tipo).reduce((a, b) => a + Number(b.monto || 0), 0);
     return { debes: sum("pago"), teDeben: sum("cobro") };
   }, [movimientos]);
 
-  const getResumen = () => {
-    let debes = 0, teDeben = 0;
-    for (const m of movimientos) {
-      const v = Number(m.monto) || 0;
-      if (m.tipo === 'pago') debes += v; else teDeben += v;
-    }
-    return { debes, teDeben, balance: teDeben - debes };
-  };
+  // Función legacy - ahora usa el selector memoizado correcto
+  const getResumen = () => totalesInicio;
 
   // ─── Avisos por movimiento ───
   // { [id]: { from?: { date: Date, time: Date, leadMin: number }, to?: {...} } }
@@ -155,7 +171,7 @@ export function MovimientosProvider({ children }) {
     <MovimientosContext.Provider
       value={{
         movimientos, addMovimiento, updateMovimiento, removeMovimiento, clearAll, removeById, 
-        resumen, resumenEstados, getMovimientosBetween, getResumen,
+        resumen, resumenEstados, totalesInicio, getMovimientosBetween, getResumen,
         remindersById, setReminderFor, clearReminderFor
       }}
     >

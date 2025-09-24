@@ -7,12 +7,11 @@ import { fmtCurrency } from "../utils/fmt";
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { getResumen } = useContext(MovimientosContext);
-  const resumen = getResumen();
+  const { totalesInicio } = useContext(MovimientosContext);
   const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-  const totalDebes = toNum(resumen?.debes);
-  const totalTeDeben = toNum(resumen?.teDeben);
-  const balance = totalTeDeben - totalDebes;
+  const totalDebes = toNum(totalesInicio?.debes);
+  const totalTeDeben = toNum(totalesInicio?.teDeben);
+  const balance = toNum(totalesInicio?.balance);
 
   return (
     <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
