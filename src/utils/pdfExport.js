@@ -242,7 +242,7 @@ function buildPdfHtml(movimientos, options = {}) {
     <html>
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
         <title>Reporte - Ordenate</title>
         <style>
             @page {
@@ -259,24 +259,49 @@ function buildPdfHtml(movimientos, options = {}) {
                 }
             }
             html, body {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
                 -webkit-text-size-adjust: 100%;
                 text-rendering: optimizeLegibility;
                 -webkit-font-smoothing: antialiased;
                 -moz-osx-font-smoothing: grayscale;
+                background: #f6f7f9;
+            }
+            *, *::before, *::after {
+                box-sizing: inherit;
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
                 font-size: 12px;
                 line-height: 1.5;
                 color: #2c3e50;
-                margin: 0;
-                padding: 0;
-                background: #ffffff;
             }
             .page {
                 width: 100%;
                 max-width: 900px;
                 margin: 0 auto;
+                padding: 16px;
+            }
+            /* Responsive tables and media */
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                table-layout: fixed;
+            }
+            th, td {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            img, svg, canvas, video {
+                max-width: 100%;
+                height: auto;
+                display: block;
+            }
+            /* Prevent blur from transforms */
+            .page, .page * {
+                transform: none !important;
+                filter: none !important;
             }
             .header {
                 text-align: center;
@@ -345,11 +370,13 @@ function buildPdfHtml(movimientos, options = {}) {
                 overflow: hidden;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                 background: white;
+                overflow-x: auto;
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
                 background: white;
+                min-width: 100%;
             }
             th {
                 background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);

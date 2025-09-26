@@ -136,6 +136,7 @@ const VistaPreviaExport = ({ route, navigation }) => {
         
         <WebView
           source={{ html: htmlContentRef.current }}
+          originWhitelist={['*']}
           style={styles.webView}
           onLoadStart={() => setWebViewLoading(true)}
           onLoadEnd={() => setWebViewLoading(false)}
@@ -150,11 +151,28 @@ const VistaPreviaExport = ({ route, navigation }) => {
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
           scalesPageToFit={false}
+          contentMode="mobile"
           startInLoadingState={false}
           javaScriptEnabled={true}
           domStorageEnabled={true}
-          allowsInlineMediaPlayback={true}
-          contentMode="mobile"
+          allowsInlineMediaPlaybook={true}
+          bounces={false}
+          automaticallyAdjustContentInsets={false}
+          androidHardwareAccelerationDisabled={false}
+          injectedJavaScriptBeforeContentLoaded={`
+            (function() {
+              // Ensure viewport meta exists for proper zoom
+              var m = document.querySelector('meta[name=viewport]');
+              if (!m) {
+                m = document.createElement('meta');
+                m.name = 'viewport';
+                m.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
+                document.head.appendChild(m);
+              }
+            })();
+            true;
+          `}
+          containerStyle={{ backgroundColor: '#f6f7f9' }}
         />
       </View>
 
@@ -241,7 +259,7 @@ const styles = StyleSheet.create({
     margin: 16,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'white',
+    backgroundColor: '#f6f7f9',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -250,7 +268,7 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f6f7f9',
   },
   webViewLoading: {
     position: 'absolute',
@@ -260,7 +278,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: '#f6f7f9',
     zIndex: 1,
   },
   loadingText: {
