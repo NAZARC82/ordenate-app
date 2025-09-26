@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeStack from './HomeStack';
 import CalendarStack from './CalendarStack';
 import HistoryStack from './HistoryStack';
-import SettingsScreen from '../screens/SettingsScreen';
+import SettingsStack from './SettingsStack';
 
 const Tab = createBottomTabNavigator();
 
@@ -45,7 +45,7 @@ export default function TabNavigator() {
       <Tab.Screen name="Inicio" component={HomeStack} />
       <Tab.Screen name="Almanaque" component={CalendarStack} />
       <Tab.Screen name="Historial" component={HistoryStack} />
-      <Tab.Screen name="Ajustes" component={SettingsScreen} />
+      <Tab.Screen name="Ajustes" component={SettingsStack} />
     </Tab.Navigator>
   );
 }

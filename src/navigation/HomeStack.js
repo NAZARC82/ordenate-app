@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import MovementDetail from '../screens/MovementDetail';
 import AgregarMovimientoScreen from '../screens/AgregarMovimientoScreen';
+import VistaPreviaExport from '../screens/VistaPreviaExport';
 
 const Stack = createNativeStackNavigator();
 
@@ -31,6 +32,13 @@ export default function HomeStack() {
           headerStyle: { backgroundColor: '#FAFAF7' },
           headerShadowVisible: false,
         })}
+      />
+      <Stack.Screen
+        name="VistaPreviaExport"
+        component={VistaPreviaExport}
+        options={{
+          headerShown: false,
+        }}
       />
     </Stack.Navigator>
   );

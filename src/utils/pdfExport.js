@@ -1,33 +1,168 @@
 // src/utils/pdfExport.js
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { getDateString, getMonthString } from './date';
+import * as FileSystem from 'expo-file-system';
 
 /**
- * Generar HTML estilizado para el reporte de movimientos
- * @param {Array} movimientos - Lista de movimientos
- * @param {string} mesAno - Mes y año en formato "YYYY-MM"
+ * Sanear nombre de archivo removiendo caracteres problemáticos
+ * @param {string} filename - Nombre original del archivo
+ * @returns {string} - Nombre saneado
+ */
+function sanitizeFilename(filename) {
+  if (!filename || typeof filename !== 'string') return 'archivo_exportado';
+  
+  return filename
+    // Remover o reemplazar caracteres problemáticos
+    .replace(/[<>:"/\\|?*]/g, '_') // Caracteres no válidos en nombres de archivo
+    .replace(/[\u0300-\u036f]/g, '') // Remover acentos/diacríticos
+    .replace(/[áàäâãå]/g, 'a')
+    .replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i')
+    .replace(/[óòöôõø]/g, 'o')
+    .replace(/[úùüû]/g, 'u')
+    .replace(/[ýÿ]/g, 'y')
+    .replace(/[ñ]/g, 'n')
+    .replace(/[ç]/g, 'c')
+    .replace(/\s+/g, '_') // Reemplazar espacios por guiones bajos
+    .replace(/_+/g, '_') // Múltiples guiones bajos por uno solo
+    .replace(/^_+|_+$/g, '') // Remover guiones bajos al inicio y final
+    .substring(0, 100) // Limitar longitud
+    || 'archivo_exportado'; // Fallback si queda vacío
+}
+
+/**
+ * Formatear moneda con formato LATAM (separadores de miles y decimales)
+ * @param {number} amount - Cantidad a formatear
+ * @returns {string} - Monto formateado (ej: "1.234,56")
+ */
+function formatCurrency(amount) {
+  if (typeof amount !== 'number' || isNaN(amount)) return '0,00';
+  return new Intl.NumberFormat('es-UY', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+/**
+ * Formatear fecha en formato local dd/MM/yyyy
+ * @param {string} isoString - Fecha ISO
+ * @returns {string} - Fecha formateada
+ */
+function formatDate(isoString) {
+  try {
+    return new Date(isoString).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch (error) {
+    return 'Fecha inválida';
+  }
+}
+
+/**
+ * Generar nombre de archivo según contexto, opciones y extensión
+ * @param {string} contexto - Tipo de reporte ('mensual', 'seleccion', 'periodo', 'filtrado')
+ * @param {Object} data - Datos adicionales para el nombre
+ * @param {string} extension - Extensión del archivo ('pdf' o 'csv')
+ * @returns {string} - Nombre del archivo
+ */
+function generateFileName(contexto, data = {}, extension = 'pdf') {
+  const fecha = new Date();
+  const timestamp = fecha.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+  const timeHour = fecha.toISOString().slice(11, 16).replace(':', ''); // HHMM
+  
+  switch (contexto) {
+    case 'mensual': {
+      if (data.mesAno) {
+        const [ano, mes] = data.mesAno.split('-');
+        const meses = [
+          'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
+        const mesTexto = meses[parseInt(mes) - 1];
+        const fileName = `Ordenate_${mesTexto}_${ano}_${data.cantidad || 0}mov.${extension}`;
+        return sanitizeFilename(fileName);
+      }
+      const fileName = `Ordenate_Mensual_${timestamp}.${extension}`;
+      return sanitizeFilename(fileName);
+    }
+    
+    case 'seleccion':
+      const seleccionFileName = `Ordenate_Seleccion_${data.cantidad || 0}mov_${timestamp}-${timeHour}.${extension}`;
+      return sanitizeFilename(seleccionFileName);
+    
+    case 'periodo':
+      if (data.mesAno) {
+        const [ano, mes] = data.mesAno.split('-');
+        const periodoFileName = `Ordenate_Periodo_${mes}-${ano}_${data.cantidad || 0}mov.${extension}`;
+        return sanitizeFilename(periodoFileName);
+      }
+      const periodoFileName = `Ordenate_Periodo_${timestamp}.${extension}`;
+      return sanitizeFilename(periodoFileName);
+    
+    case 'filtrado': {
+      // Para filtros desde modal de opciones
+      let nombreParts = ['Ordenate'];
+      
+      // Agregar rango de fecha
+      if (data.rango === 'actual') {
+        const mesActual = fecha.getMonth() + 1;
+        const anoActual = fecha.getFullYear();
+        nombreParts.push(`${String(mesActual).padStart(2, '0')}-${anoActual}`);
+      } else if (data.rango === 'anterior') {
+        const mesAnterior = new Date(fecha.getFullYear(), fecha.getMonth() - 1);
+        const mes = mesAnterior.getMonth() + 1;
+        const ano = mesAnterior.getFullYear();
+        nombreParts.push(`${String(mes).padStart(2, '0')}-${ano}`);
+      } else if (data.rango === 'personalizado' && data.fechaDesde && data.fechaHasta) {
+        // Convertir dd/mm/aaaa a formato compacto
+        const desde = data.fechaDesde.replace(/\//g, '');
+        const hasta = data.fechaHasta.replace(/\//g, '');
+        nombreParts.push(`${desde}-${hasta}`);
+      }
+      
+      // Agregar tipo si no es "ambos"
+      if (data.tipo && data.tipo !== 'ambos') {
+        nombreParts.push(data.tipo);
+      }
+      
+      // Agregar estados si no son todos
+      if (data.estados && data.estados.length > 0 && data.estados.length < 4) {
+        nombreParts.push(data.estados.join('-'));
+      }
+      
+      // Agregar cantidad
+      nombreParts.push(`${data.cantidad || 0}mov`);
+      
+      const fileName = `${nombreParts.join('_')}.${extension}`;
+      return sanitizeFilename(fileName);
+    }
+    
+    default:
+      const fileName = `Ordenate_Reporte_${timestamp}.${extension}`;
+      return sanitizeFilename(fileName);
+  }
+}
+
+/**
+ * Construir HTML del PDF con estilos avanzados
+ * @param {Array} movimientos - Lista de movimientos filtrados
+ * @param {Object} options - Opciones de exportación
  * @returns {string} HTML completo del reporte
  */
-function generarHTMLReporte(movimientos, mesAno) {
-  // Formatear mes para mostrar
-  const [ano, mes] = mesAno.split('-');
-  const meses = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
-  const mesTexto = meses[parseInt(mes) - 1];
-
-  // Filtrar movimientos del mes
-  const movimientosMes = movimientos.filter(mov => 
-    getMonthString(mov.fechaISO) === mesAno
-  );
-
+function buildPdfHtml(movimientos, options = {}) {
+  const {
+    titulo = 'Reporte de Movimientos',
+    subtitulo = '',
+    columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
+    isSelection = false
+  } = options;
   // Calcular totales
   let totalPagos = 0;
   let totalCobros = 0;
   
-  movimientosMes.forEach(mov => {
+  movimientos.forEach(mov => {
     if (mov.tipo === 'pago') {
       totalPagos += mov.monto || 0;
     } else if (mov.tipo === 'cobro') {
@@ -37,241 +172,312 @@ function generarHTMLReporte(movimientos, mesAno) {
 
   const balance = totalCobros - totalPagos;
 
-  // Generar filas de la tabla
-  const filasMovimientos = movimientosMes
-    .sort((a, b) => new Date(b.fechaISO) - new Date(a.fechaISO))
-    .map(mov => {
-      const fecha = new Date(mov.fechaISO).toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-      
-      const tipoTexto = mov.tipo === 'pago' ? 'Pago' : 'Cobro';
-      const montoTexto = mov.tipo === 'pago' ? `-$${mov.monto}` : `+$${mov.monto}`;
-      const estadoTexto = mov.estado || 'pendiente';
-      const notaTexto = mov.nota || '-';
+  // Generar encabezados de columnas
+  const headers = [];
+  if (columnas.includes('fecha')) headers.push('<th>📅 Fecha</th>');
+  if (columnas.includes('tipo')) headers.push('<th>💰 Tipo</th>');
+  if (columnas.includes('monto')) headers.push('<th>💵 Monto</th>');
+  if (columnas.includes('estado')) headers.push('<th>📋 Estado</th>');
+  if (columnas.includes('nota')) headers.push('<th>📝 Nota</th>');
 
-      return `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">${fecha}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: ${mov.tipo === 'pago' ? '#c62828' : '#2e7d32'};">${tipoTexto}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold; color: ${mov.tipo === 'pago' ? '#c62828' : '#2e7d32'};">${montoTexto}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
-            <span style="background-color: ${getEstadoColorPDF(estadoTexto)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase;">
+  // Generar filas de la tabla con zebra rows
+  const filasMovimientos = movimientos
+    .sort((a, b) => new Date(b.fechaISO) - new Date(a.fechaISO))
+    .map((mov, index) => {
+      const isEvenRow = index % 2 === 0;
+      const rowStyle = `background-color: ${isEvenRow ? '#ffffff' : '#f8f9fa'};`;
+      
+      const cells = [];
+      
+      if (columnas.includes('fecha')) {
+        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0;">${formatDate(mov.fechaISO)}</td>`);
+      }
+      
+      if (columnas.includes('tipo')) {
+        const tipoTexto = mov.tipo === 'pago' ? 'Pago' : 'Cobro';
+        const tipoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
+        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: ${tipoColor};">${tipoTexto}</td>`);
+      }
+      
+      if (columnas.includes('monto')) {
+        const signo = mov.tipo === 'pago' ? '–' : '+';
+        const montoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
+        const montoTexto = `${signo}$${formatCurrency(mov.monto)}`;
+        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold; color: ${montoColor};">${montoTexto}</td>`);
+      }
+      
+      if (columnas.includes('estado')) {
+        const estadoTexto = mov.estado || 'pendiente';
+        const estadoColor = getEstadoColorPDF(estadoTexto);
+        cells.push(`
+          <td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0;">
+            <span style="background-color: ${estadoColor}; color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; display: inline-block;">
               ${estadoTexto}
             </span>
           </td>
-          <td style="padding: 8px; border-bottom: 1px solid #e0e0e0; max-width: 150px; word-wrap: break-word;">${notaTexto}</td>
-        </tr>
-      `;
+        `);
+      }
+      
+      if (columnas.includes('nota')) {
+        const notaTexto = mov.nota || '—';
+        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; max-width: 150px; word-wrap: break-word; color: #555;">${notaTexto}</td>`);
+      }
+
+      return `<tr style="${rowStyle} page-break-inside: avoid;">${cells.join('')}</tr>`;
     }).join('');
 
-  // Fila de mensaje si no hay movimientos
-  const filaVacia = movimientosMes.length === 0 ? `
+  // Mensaje para tablas vacías (fila vacía si no hay movimientos)
+  const filaVacia = movimientos.length === 0 ? `
     <tr>
-      <td colspan="5" style="padding: 20px; text-align: center; color: #666; font-style: italic;">
-        No hay movimientos registrados para este mes
+      <td colspan="${headers.length}" style="padding: 30px; text-align: center; color: #64748b; font-style: italic; background-color: #f8fafc;">
+        <div style="font-size: 16px; margin-bottom: 8px;">📋</div>
+        No hay movimientos registrados para mostrar
       </td>
     </tr>
   ` : '';
 
+  // Plantilla HTML con columnas dinámicas
   return `
     <!DOCTYPE html>
-    <html lang="es">
+    <html>
     <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Reporte de Movimientos - ${mesTexto} ${ano}</title>
-      <style>
-        body {
-          font-family: 'Helvetica', 'Arial', sans-serif;
-          margin: 20px;
-          background-color: #f8f9fa;
-          color: #333;
-        }
-        
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-          background-color: #3E7D75;
-          color: white;
-          padding: 20px;
-          border-radius: 8px;
-        }
-        
-        .header h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: bold;
-        }
-        
-        .header p {
-          margin: 5px 0 0 0;
-          font-size: 14px;
-          opacity: 0.9;
-        }
-        
-        .resumen {
-          background-color: white;
-          border-radius: 8px;
-          padding: 20px;
-          margin-bottom: 20px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .resumen h2 {
-          margin: 0 0 15px 0;
-          color: #4D3527;
-          font-size: 18px;
-        }
-        
-        .resumen-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 15px;
-          text-align: center;
-        }
-        
-        .resumen-item {
-          padding: 10px;
-          border-radius: 6px;
-        }
-        
-        .resumen-item.pagos {
-          background-color: #ffebee;
-          border-left: 4px solid #c62828;
-        }
-        
-        .resumen-item.cobros {
-          background-color: #e8f5e8;
-          border-left: 4px solid #2e7d32;
-        }
-        
-        .resumen-item.balance {
-          background-color: #f3f4f6;
-          border-left: 4px solid ${balance >= 0 ? '#2e7d32' : '#c62828'};
-        }
-        
-        .resumen-label {
-          font-size: 12px;
-          color: #666;
-          margin-bottom: 5px;
-          text-transform: uppercase;
-          font-weight: 600;
-        }
-        
-        .resumen-valor {
-          font-size: 18px;
-          font-weight: bold;
-          color: #333;
-        }
-        
-        .tabla-container {
-          background-color: white;
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 14px;
-        }
-        
-        th {
-          background-color: #f8f9fa;
-          color: #4D3527;
-          font-weight: 600;
-          padding: 12px 8px;
-          text-align: left;
-          border-bottom: 2px solid #e0e0e0;
-        }
-        
-        td {
-          vertical-align: top;
-        }
-        
-        .footer {
-          margin-top: 30px;
-          text-align: center;
-          color: #666;
-          font-size: 12px;
-        }
-        
-        .generado {
-          border-top: 1px solid #e0e0e0;
-          padding-top: 15px;
-          margin-top: 15px;
-        }
-        
-        @media print {
-          body { margin: 15px; }
-          .header, .resumen, .tabla-container { 
-            box-shadow: none; 
-            border: 1px solid #ddd;
-          }
-        }
-      </style>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <title>Reporte - Ordenate</title>
+        <style>
+            @page {
+                margin: 20mm;
+                @top-center {
+                    content: "Ordenate - Reporte Financiero";
+                    font-size: 12px;
+                    color: #666;
+                }
+                @bottom-center {
+                    content: "Página " counter(page) " de " counter(pages);
+                    font-size: 10px;
+                    color: #999;
+                }
+            }
+            html, body {
+                -webkit-text-size-adjust: 100%;
+                text-rendering: optimizeLegibility;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+                font-size: 12px;
+                line-height: 1.5;
+                color: #2c3e50;
+                margin: 0;
+                padding: 0;
+                background: #ffffff;
+            }
+            .page {
+                width: 100%;
+                max-width: 900px;
+                margin: 0 auto;
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 25px;
+                padding: 20px 0;
+                border-bottom: 3px solid #3498db;
+                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                page-break-after: avoid;
+            }
+            .header h1 {
+                color: #2c3e50;
+                font-size: 28px;
+                margin: 0 0 10px 0;
+                font-weight: 700;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+            .header .subtitle {
+                color: #64748b;
+                margin: 8px 0;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            .summary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 25px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
+                page-break-inside: avoid;
+            }
+            .summary h3 {
+                margin: 0 0 20px 0;
+                font-size: 18px;
+                font-weight: 600;
+                text-align: center;
+            }
+            .summary-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 15px;
+            }
+            .summary-item {
+                text-align: center;
+                padding: 15px;
+                background: rgba(255,255,255,0.15);
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+            }
+            .summary-item .label {
+                display: block;
+                font-size: 12px;
+                opacity: 0.9;
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            .summary-item .value {
+                display: block;
+                font-size: 18px;
+                font-weight: bold;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            }
+            .table-container {
+                margin-top: 25px;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                background: white;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+            }
+            th {
+                background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+                color: white;
+                font-weight: 700;
+                padding: 15px 12px;
+                text-align: left;
+                font-size: 12px;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #2980b9;
+            }
+            tbody tr:nth-child(odd) {
+                background-color: #ffffff;
+            }
+            tbody tr:nth-child(even) {
+                background-color: #f8fafc;
+            }
+            tbody tr {
+                transition: background-color 0.2s ease;
+                page-break-inside: avoid;
+            }
+            tbody tr:hover {
+                background-color: #e1f5fe !important;
+            }
+            td {
+                padding: 12px;
+                border-bottom: 1px solid #e2e8f0;
+                vertical-align: middle;
+                font-size: 11px;
+            }
+            .footer {
+                margin-top: 40px;
+                text-align: center;
+                font-size: 11px;
+                color: #64748b;
+                border-top: 2px solid #e2e8f0;
+                padding-top: 20px;
+                page-break-inside: avoid;
+            }
+            .footer .app-info {
+                font-weight: 600;
+                color: #3498db;
+                margin-bottom: 5px;
+            }
+            @media print {
+                body { 
+                    margin: 0; 
+                    padding: 0;
+                    -webkit-print-color-adjust: exact;
+                    color-adjust: exact;
+                }
+                .header { 
+                    page-break-after: avoid;
+                    margin-bottom: 20px;
+                }
+                .summary {
+                    page-break-after: avoid;
+                    margin-bottom: 25px;
+                }
+                tr { 
+                    page-break-inside: avoid; 
+                }
+                .table-container {
+                    page-break-inside: auto;
+                }
+                thead {
+                    display: table-header-group;
+                }
+            }
+        </style>
     </head>
     <body>
-      <div class="header">
-        <h1>📊 Reporte de Movimientos</h1>
-        <p>${mesTexto} ${ano} - Ordénate App</p>
-      </div>
-      
-      <div class="resumen">
-        <h2>📈 Resumen del Mes</h2>
-        <div class="resumen-grid">
-          <div class="resumen-item pagos">
-            <div class="resumen-label">Total Pagos</div>
-            <div class="resumen-valor">-$${totalPagos.toFixed(2)}</div>
-          </div>
-          <div class="resumen-item cobros">
-            <div class="resumen-label">Total Cobros</div>
-            <div class="resumen-valor">+$${totalCobros.toFixed(2)}</div>
-          </div>
-          <div class="resumen-item balance">
-            <div class="resumen-label">Balance</div>
-            <div class="resumen-valor" style="color: ${balance >= 0 ? '#2e7d32' : '#c62828'};">
-              ${balance >= 0 ? '+' : ''}$${balance.toFixed(2)}
+        <div class="page">
+        <div class="header">
+            <h1>� Ordenate</h1>
+            <div class="subtitle">�📊 Reporte Financiero</div>
+            <div class="subtitle">📅 ${new Date().toLocaleDateString('es-UY', {
+              weekday: 'long',
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric'
+            })}</div>
+            <div class="subtitle">⏰ ${new Date().toLocaleTimeString('es-UY', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</div>
+        </div>
+
+        <div class="summary">
+            <h3>📈 Resumen Ejecutivo</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="label">💚 Cobros Totales</span>
+                    <span class="value">$${formatCurrency(totalCobros)}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">💸 Pagos Totales</span>
+                    <span class="value">$${formatCurrency(totalPagos)}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">⚖️ Balance Neto</span>
+                    <span class="value" style="color: ${balance >= 0 ? '#00e676' : '#ff5252'};">
+                        ${balance >= 0 ? '+' : ''}$${formatCurrency(Math.abs(balance))}
+                    </span>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-      
-      <div class="tabla-container">
-        <table>
-          <thead>
-            <tr>
-              <th>📅 Fecha</th>
-              <th>💰 Tipo</th>
-              <th>💵 Monto</th>
-              <th>📋 Estado</th>
-              <th>📝 Nota</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filasMovimientos}
-            ${filaVacia}
-          </tbody>
-        </table>
-      </div>
-      
-      <div class="footer">
-        <div class="generado">
-          <strong>Total de movimientos:</strong> ${movimientosMes.length}
-          <br>
-          Generado el ${new Date().toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })} por Ordénate App
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        ${headers.join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filasMovimientos}
+                    ${filaVacia}
+                </tbody>
+            </table>
         </div>
-      </div>
+
+        <div class="footer">
+            <div class="app-info">🏢 Generado por Ordenate App</div>
+            <div>📱 Tu asistente financiero personal</div>
+            <div>📄 ${movimientos.length} movimiento(s) incluido(s) en este reporte</div>
+        </div>
+        </div>
     </body>
     </html>
   `;
@@ -293,6 +499,275 @@ function getEstadoColorPDF(estado) {
 }
 
 /**
+ * Escapar campos CSV (manejar comas, comillas y saltos de línea)
+ * @param {string} field - Campo a escapar
+ * @returns {string} Campo escapado para CSV
+ */
+function escapeCSVField(field) {
+  if (field === null || field === undefined) return '';
+  
+  const stringField = String(field);
+  
+  // Si el campo contiene comas, comillas o saltos de línea, debe ir entre comillas
+  if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n') || stringField.includes('\r')) {
+    // Escapar las comillas duplicándolas
+    const escapedField = stringField.replace(/"/g, '""');
+    return `"${escapedField}"`;
+  }
+  
+  return stringField;
+}
+
+/**
+ * Generar contenido CSV con columnas seleccionadas
+ * @param {Array} movimientos - Lista de movimientos filtrados
+ * @param {Object} opciones - Opciones de exportación
+ * @returns {string} - Contenido del CSV
+ */
+function buildCSVContent(movimientos, opciones = {}) {
+  console.log('[export] buildCSVContent iniciado', { movimientos: movimientos?.length, opciones });
+  
+  // Validaciones iniciales
+  if (!movimientos || !Array.isArray(movimientos)) {
+    console.error('[export] buildCSVContent: movimientos no válidos');
+    return '';
+  }
+
+  const {
+    columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota']
+  } = opciones;
+
+  // Validar columnas
+  if (!columnas || !Array.isArray(columnas) || columnas.length === 0) {
+    console.error('[export] buildCSVContent: columnas no válidas');
+    return '';
+  }
+
+  // Generar encabezados con validación
+  const headers = [];
+  const columnasValidas = ['fecha', 'tipo', 'monto', 'estado', 'nota'];
+  
+  columnas.forEach(col => {
+    if (columnasValidas.includes(col)) {
+      switch(col) {
+        case 'fecha': headers.push('Fecha'); break;
+        case 'tipo': headers.push('Tipo'); break;
+        case 'monto': headers.push('Monto'); break;
+        case 'estado': headers.push('Estado'); break;
+        case 'nota': headers.push('Nota'); break;
+      }
+    }
+  });
+
+  if (headers.length === 0) {
+    console.error('[export] buildCSVContent: No hay headers válidos');
+    return '';
+  }
+
+  console.log('[export] buildCSVContent: Headers generados', headers);
+
+  // Línea de encabezados
+  let csvContent = headers.join(',') + '\n';
+
+  // Verificar si hay movimientos para procesar
+  if (movimientos.length === 0) {
+    console.log('[export] buildCSVContent: No hay movimientos, retornando solo headers');
+    return csvContent; // Solo headers
+  }
+
+  // Ordenar movimientos por fecha (más recientes primero)
+  const movimientosOrdenados = [...movimientos] // copia para no mutar original
+    .filter(mov => mov && typeof mov === 'object') // filtrar elementos válidos
+    .sort((a, b) => {
+      try {
+        return new Date(b.fechaISO || 0) - new Date(a.fechaISO || 0);
+      } catch (e) {
+        return 0; // mantener orden original si hay error
+      }
+    });
+
+  console.log('[export] buildCSVContent: Movimientos ordenados', movimientosOrdenados.length);
+
+  // Generar filas de datos
+  movimientosOrdenados.forEach((mov, index) => {
+    try {
+      const row = [];
+      
+      if (columnas.includes('fecha')) {
+        const fechaStr = formatDate(mov.fechaISO);
+        row.push(escapeCSVField(fechaStr));
+      }
+      
+      if (columnas.includes('tipo')) {
+        const tipoTexto = mov.tipo === 'pago' ? 'Pago' : 'Cobro';
+        row.push(escapeCSVField(tipoTexto));
+      }
+      
+      if (columnas.includes('monto')) {
+        const signo = mov.tipo === 'pago' ? '-' : '+';
+        const montoTexto = `${signo}${formatCurrency(mov.monto)}`;
+        row.push(escapeCSVField(montoTexto));
+      }
+      
+      if (columnas.includes('estado')) {
+        const estadoTexto = mov.estado || 'pendiente';
+        row.push(escapeCSVField(estadoTexto));
+      }
+      
+      if (columnas.includes('nota')) {
+        const notaTexto = mov.nota || '';
+        row.push(escapeCSVField(notaTexto));
+      }
+
+      // Solo agregar fila si tiene al menos un campo
+      if (row.length > 0) {
+        csvContent += row.join(',') + '\n';
+      }
+    } catch (error) {
+      console.error(`[export] Error procesando movimiento ${index}:`, error, mov);
+      // Continuar con el siguiente movimiento
+    }
+  });
+
+  console.log('[export] buildCSVContent completado, longitud final:', csvContent.length);
+  return csvContent;
+}
+
+/**
+ * Generar vista previa HTML para mostrar en WebView
+ * @param {Array} movimientos - Lista de movimientos filtrados
+ * @param {Object} opciones - Opciones de exportación
+ * @returns {string} - HTML content para vista previa
+ */
+export function generarVistaPreviaHTML(movimientos, opciones = {}) {
+  return buildPdfHtml(movimientos, opciones);
+}
+
+/**
+ * Exportar movimientos filtrados a CSV
+ * @param {Array} movimientos - Lista de movimientos filtrados
+ * @param {Object} opciones - Opciones de exportación
+ * @returns {Promise<boolean>} True si se exportó exitosamente
+ */
+export async function exportarCSV(movimientos, opciones = {}) {
+  console.log('[export] Iniciando exportación CSV', { movimientos: movimientos?.length, opciones });
+  
+  try {
+    // Validaciones iniciales
+    if (!movimientos || !Array.isArray(movimientos) || movimientos.length === 0) {
+      console.warn('[export] CSV: No hay movimientos para exportar');
+      return { 
+        success: false, 
+        error: 'No hay datos para exportar',
+        message: 'Selecciona al menos un movimiento para exportar.' 
+      };
+    }
+
+    const {
+      columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
+      contexto = 'filtrado',
+      ...dataParaNombre
+    } = opciones;
+
+    // Validar columnas
+    if (!columnas || !Array.isArray(columnas) || columnas.length === 0) {
+      console.warn('[export] CSV: No hay columnas válidas');
+      return { 
+        success: false, 
+        error: 'Columnas no válidas',
+        message: 'Selecciona al menos una columna para exportar.' 
+      };
+    }
+
+    console.log('[export] CSV: Generando contenido con', { columnas, movimientos: movimientos.length });
+
+    // Generar contenido CSV
+    const csvContent = buildCSVContent(movimientos, { columnas });
+    
+    // Validar que csvContent es string y no está vacío
+    if (!csvContent || typeof csvContent !== 'string' || csvContent.trim().length === 0) {
+      console.error('[export] CSV: Error generando contenido CSV');
+      return { 
+        success: false, 
+        error: 'Error generando CSV',
+        message: 'No se pudo generar el contenido del archivo CSV.' 
+      };
+    }
+
+    console.log('[export] CSV: Contenido generado, longitud:', csvContent.length);
+
+    // Generar nombre del archivo
+    let nombreArchivo = generateFileName(contexto, {
+      cantidad: movimientos.length,
+      ...dataParaNombre
+    }, 'csv');
+    
+    // Asegurar que el nombre está sanitizado
+    nombreArchivo = sanitizeFilename(nombreArchivo);
+    if (!nombreArchivo.endsWith('.csv')) {
+      nombreArchivo += '.csv';
+    }
+
+    console.log('[export] CSV: Nombre archivo:', nombreArchivo);
+
+    // Usar cacheDirectory para mejor compatibilidad
+    const fileUri = `${FileSystem.cacheDirectory}${nombreArchivo}`;
+    
+    console.log('[export] CSV: Escribiendo archivo en:', fileUri);
+    
+    // Escribir contenido CSV al archivo
+    await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    console.log('[export] CSV: Archivo escrito exitosamente');
+
+    // Verificar si el dispositivo puede compartir
+    const isAvailable = await Sharing.isAvailableAsync();
+    
+    if (!isAvailable) {
+      console.warn('[export] CSV: Sharing no disponible, guardando localmente');
+      return { 
+        success: true,
+        fileUri: fileUri,
+        fileName: nombreArchivo,
+        mimeType: 'text/csv',
+        isLocalOnly: true,
+        message: `Archivo guardado localmente en: ${fileUri}`
+      };
+    }
+
+    console.log('[export] CSV: Sharing disponible, retornando info para ActionSheet');
+
+    // Retornar información del archivo para el ActionSheet
+    return {
+      success: true,
+      fileUri: fileUri,
+      fileName: nombreArchivo,
+      mimeType: 'text/csv'
+    };
+  } catch (error) {
+    console.error('[export] Error al exportar CSV:', error);
+    console.error('[export] Error stack:', error.stack);
+    
+    // Mensaje específico según el tipo de error
+    let userMessage = 'No se pudo exportar el archivo CSV.';
+    if (error.message.includes('write') || error.message.includes('ENOENT')) {
+      userMessage = 'Error escribiendo el archivo. Verifica permisos de almacenamiento.';
+    } else if (error.message.includes('network')) {
+      userMessage = 'Error de conectividad. Verifica tu conexión.';
+    }
+    
+    return { 
+      success: false, 
+      error: error.message,
+      message: userMessage,
+      technical: error.stack 
+    };
+  }
+}
+
+/**
  * Exportar movimientos del mes actual a PDF
  * @param {Array} movimientos - Lista de movimientos del contexto
  * @returns {Promise<boolean>} True si se exportó exitosamente
@@ -303,8 +778,18 @@ export async function exportarPDFMesActual(movimientos) {
     const hoy = new Date();
     const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
     
-    // Generar HTML
-    const htmlContent = generarHTMLReporte(movimientos, mesActual);
+    // Filtrar movimientos del mes actual
+    const movimientosMes = movimientos.filter(mov => {
+      if (!mov.fechaISO) return false;
+      const fechaMov = mov.fechaISO.slice(0, 7); // "YYYY-MM"
+      return fechaMov === mesActual;
+    });
+    
+    // Generar HTML usando la nueva función
+    const htmlContent = buildPdfHtml(movimientosMes, {
+      titulo: 'Reporte Mensual',
+      subtitulo: `Movimientos del mes actual`
+    });
     
     // Generar PDF
     const { uri } = await Print.printToFileAsync({
@@ -319,14 +804,8 @@ export async function exportarPDFMesActual(movimientos) {
       return false;
     }
     
-    // Generar nombre del archivo
-    const [ano, mes] = mesActual.split('-');
-    const meses = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    const mesTexto = meses[parseInt(mes) - 1];
-    const nombreArchivo = `Ordenate_Movimientos_${mesTexto}_${ano}.pdf`;
+    // Generar nombre del archivo usando la función helper
+    const nombreArchivo = generateFileName('mensual', { mesAno: mesActual, cantidad: movimientosMes.length }, 'pdf');
     
     // Compartir archivo
     await Sharing.shareAsync(uri, {
@@ -350,7 +829,17 @@ export async function exportarPDFMesActual(movimientos) {
  */
 export async function exportarPDFPeriodo(movimientos, mesAno) {
   try {
-    const htmlContent = generarHTMLReporte(movimientos, mesAno);
+    // Filtrar movimientos del período especificado
+    const movimientosPeriodo = movimientos.filter(mov => {
+      if (!mov.fechaISO) return false;
+      const fechaMov = mov.fechaISO.slice(0, 7); // "YYYY-MM"
+      return fechaMov === mesAno;
+    });
+    
+    const htmlContent = buildPdfHtml(movimientosPeriodo, {
+      titulo: 'Reporte de Período',
+      subtitulo: `Período: ${mesAno}`
+    });
     
     const { uri } = await Print.printToFileAsync({
       html: htmlContent,
@@ -363,13 +852,7 @@ export async function exportarPDFPeriodo(movimientos, mesAno) {
       return false;
     }
     
-    const [ano, mes] = mesAno.split('-');
-    const meses = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    const mesTexto = meses[parseInt(mes) - 1];
-    const nombreArchivo = `Ordenate_Movimientos_${mesTexto}_${ano}.pdf`;
+    const nombreArchivo = generateFileName('periodo', { mesAno, cantidad: movimientosPeriodo.length }, 'pdf');
     
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
@@ -381,5 +864,144 @@ export async function exportarPDFPeriodo(movimientos, mesAno) {
   } catch (error) {
     console.error('Error al exportar PDF:', error);
     throw error;
+  }
+}
+
+/**
+ * Exportar movimientos seleccionados con opciones avanzadas
+ * @param {Array} movimientos - Lista de movimientos seleccionados
+ * @param {Object} opciones - Opciones de exportación avanzadas
+ * @returns {Promise<boolean>} True si se exportó exitosamente
+ */
+export async function exportarPDFSeleccion(movimientos, opciones = {}) {
+  console.log('[export] Iniciando exportación PDF', { movimientos: movimientos?.length, opciones });
+  
+  try {
+    // Validaciones iniciales
+    if (!movimientos || !Array.isArray(movimientos) || movimientos.length === 0) {
+      console.warn('[export] PDF: No hay movimientos para exportar');
+      return { 
+        success: false, 
+        error: 'No hay datos para exportar',
+        message: 'Selecciona al menos un movimiento para exportar.' 
+      };
+    }
+
+    const {
+      titulo = 'Selección de Movimientos',
+      subtitulo = '',
+      columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
+      contexto = 'seleccion'
+    } = opciones;
+
+    console.log('[export] PDF: Generando HTML con', { titulo, subtitulo, columnas, movimientos: movimientos.length });
+
+    // Generar HTML usando la función buildPdfHtml
+    const htmlContent = buildPdfHtml(movimientos, {
+      titulo,
+      subtitulo: subtitulo || `${movimientos.length} movimientos seleccionados`,
+      columnas,
+      isSelection: true
+    });
+    
+    // Validar que htmlContent es string y no está vacío
+    if (!htmlContent || typeof htmlContent !== 'string' || htmlContent.trim().length === 0) {
+      console.error('[export] PDF: Error generando contenido HTML');
+      return { 
+        success: false, 
+        error: 'Error generando HTML',
+        message: 'No se pudo generar el contenido del archivo PDF.' 
+      };
+    }
+
+    console.log('[export] PDF: HTML generado, longitud:', htmlContent.length);
+    
+    // Generar PDF
+    console.log('[export] PDF: Iniciando generación con Print.printToFileAsync');
+    const printResult = await Print.printToFileAsync({
+      html: htmlContent,
+      base64: false,
+      width: 612, // Letter width in points
+      height: 792, // Letter height in points
+      margins: {
+        left: 20,
+        top: 20,
+        right: 20,
+        bottom: 20,
+      }
+    });
+    
+    if (!printResult || !printResult.uri) {
+      console.error('[export] PDF: Print.printToFileAsync no retornó URI válida');
+      return { 
+        success: false, 
+        error: 'Error generando PDF',
+        message: 'No se pudo generar el archivo PDF.' 
+      };
+    }
+
+    console.log('[export] PDF: Archivo PDF generado en:', printResult.uri);
+    
+    // Generar nombre del archivo
+    let nombreArchivo = generateFileName(contexto, { 
+      cantidad: movimientos.length,
+      titulo: titulo.replace(/[^a-zA-Z0-9]/g, '_'),
+      ...opciones
+    }, 'pdf');
+    
+    // Asegurar que el nombre está sanitizado
+    nombreArchivo = sanitizeFilename(nombreArchivo);
+    if (!nombreArchivo.endsWith('.pdf')) {
+      nombreArchivo += '.pdf';
+    }
+
+    console.log('[export] PDF: Nombre archivo:', nombreArchivo);
+    
+    // Verificar si el dispositivo puede compartir
+    const isAvailable = await Sharing.isAvailableAsync();
+    
+    if (!isAvailable) {
+      console.warn('[export] PDF: Sharing no disponible, guardando localmente');
+      return { 
+        success: true,
+        fileUri: printResult.uri,
+        fileName: nombreArchivo,
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+        isLocalOnly: true,
+        message: `Archivo PDF guardado localmente: ${nombreArchivo}`
+      };
+    }
+
+    console.log('[export] PDF: Sharing disponible, retornando info para ActionSheet');
+    
+    // Retornar información del archivo para el ActionSheet
+    return {
+      success: true,
+      fileUri: printResult.uri,
+      fileName: nombreArchivo,
+      mimeType: 'application/pdf',
+      UTI: 'com.adobe.pdf'
+    };
+  } catch (error) {
+    console.error('[export] Error al exportar PDF:', error);
+    console.error('[export] Error stack:', error.stack);
+    
+    // Mensaje específico según el tipo de error
+    let userMessage = 'No se pudo exportar el archivo PDF.';
+    if (error.message.includes('printToFile') || error.message.includes('html')) {
+      userMessage = 'Error generando el PDF. El contenido podría ser muy grande.';
+    } else if (error.message.includes('permission')) {
+      userMessage = 'Permisos insuficientes para crear el archivo PDF.';
+    } else if (error.message.includes('storage') || error.message.includes('space')) {
+      userMessage = 'Espacio de almacenamiento insuficiente.';
+    }
+    
+    return { 
+      success: false, 
+      error: error.message,
+      message: userMessage,
+      technical: error.stack 
+    };
   }
 }

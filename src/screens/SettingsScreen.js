@@ -3,31 +3,37 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { MovimientosContext } from "../state/MovimientosContext";
-import { exportarPDFMesActual } from "../utils/pdfExport";
+import { exportarPDFSeleccion } from "../utils/pdfExport";
+import ExportOptionsModal from "../components/ExportOptionsModal";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { movimientos } = useContext(MovimientosContext);
   const [isExporting, setIsExporting] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const handleExportarPDF = async () => {
-    if (isExporting) return;
+  const handleOpenModal = () => {
+    if (movimientos.length === 0) {
+      Alert.alert(
+        'Sin movimientos',
+        'No hay movimientos registrados para exportar.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setModalVisible(true);
+  };
 
+  const handleExportarPDF = async (movimientosFiltrados, opciones) => {
     try {
       setIsExporting(true);
-
-      // Verificar si hay movimientos
-      if (movimientos.length === 0) {
-        Alert.alert(
-          'Sin movimientos',
-          'No hay movimientos registrados para exportar.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Exportar PDF
-      await exportarPDFMesActual(movimientos);
+      
+      const result = await exportarPDFSeleccion(movimientosFiltrados, {
+        ...opciones,
+        contexto: 'filtrado'
+      });
+      
+      return result;
       
     } catch (error) {
       console.error('Error al exportar PDF:', error);
@@ -36,6 +42,7 @@ export default function SettingsScreen() {
         'Hubo un problema al generar el PDF. Por favor, inténtalo de nuevo.',
         [{ text: 'OK' }]
       );
+      return { success: false, error: error.message };
     } finally {
       setIsExporting(false);
     }
@@ -60,7 +67,7 @@ export default function SettingsScreen() {
         
         <TouchableOpacity 
           style={[styles.optionButton, isExporting && styles.optionButtonDisabled]} 
-          onPress={handleExportarPDF}
+          onPress={handleOpenModal}
           disabled={isExporting}
           activeOpacity={0.7}
         >
@@ -76,7 +83,7 @@ export default function SettingsScreen() {
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>Exportar PDF</Text>
                 <Text style={styles.optionDescription}>
-                  Movimientos de {mesActual} {anoActual}
+                  Filtros personalizados y columnas
                 </Text>
               </View>
             </View>
@@ -100,12 +107,21 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>ℹ️ Información</Text>
         <Text style={styles.infoText}>
-          El reporte incluye todos los movimientos del mes actual con fecha, tipo, monto, estado y notas.
+          Exporta PDFs con filtros personalizados por fecha, tipo, estado y columnas seleccionables.
         </Text>
         <Text style={styles.subtitle}>
-          Próximamente: categorías, filtros personalizados, exportar Excel, seguridad.
+          Próximamente: categorías, exportar Excel, sincronización en la nube.
         </Text>
       </View>
+
+      {/* Modal de opciones de exportación */}
+      <ExportOptionsModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onExport={handleExportarPDF}
+        movimientos={movimientos}
+        loading={isExporting}
+      />
     </View>
   );
 }

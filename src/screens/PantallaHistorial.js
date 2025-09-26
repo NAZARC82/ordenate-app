@@ -1,16 +1,26 @@
-import React, { useMemo, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity } from 'react-native';
+import React, { useMemo, useLayoutEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMovimientos } from '../state/MovimientosContext';
 import { getDateString } from '../utils/date';
 import { getEstadoColor } from '../utils/estadoColor';
+import { exportarPDFSeleccion } from '../utils/pdfExport';
+import ActionSheet from '../components/ActionSheet';
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
   const route = useRoute();
   const navigation = useNavigation();
   const filter = route.params?.filter ?? null;
+  
+  // Estados para el modo de selección
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [isExporting, setIsExporting] = useState(false);
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [exportResult, setExportResult] = useState(null);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
@@ -82,51 +92,164 @@ export default function PantallaHistorial() {
     );
   };
 
-  const renderMovementItem = ({ item }) => (
-    <View style={styles.movementItem}>
-      <View style={styles.movementHeader}>
-        <View style={styles.movementLeft}>
-          <Text style={styles.movementTipo}>
-            {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
-          </Text>
-          <Text style={styles.movementDate}>
-            {formatDate(item.fechaISO)}
-          </Text>
-        </View>
-        <View style={styles.movementRight}>
-          <Text style={[
-            styles.movementMonto,
-            { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
-          ]}>
-            {item.tipo === 'pago' ? '-' : '+'}${item.monto}
-          </Text>
-          <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado) }]}>
-            <Text style={styles.estadoText}>{item.estado}</Text>
+  // Manejar cambio de modo selección
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedItems(new Set()); // Limpiar selección al cambiar modo
+  };
+
+  // Manejar selección de items
+  const toggleItemSelection = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  // Manejar cierre del ActionSheet
+  const handleActionSheetClose = () => {
+    setActionSheetVisible(false);
+    setExportResult(null);
+  };
+
+  // Exportar items seleccionados
+  const handleExportarSeleccionados = async () => {
+    if (selectedItems.size === 0) {
+      Alert.alert(
+        'Sin selección',
+        'Debe seleccionar al menos un movimiento para exportar.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+
+      // Filtrar movimientos seleccionados
+      const movimientosSeleccionados = sortedMovimientos.filter(mov => 
+        selectedItems.has(mov.id)
+      );
+
+      const result = await exportarPDFSeleccion(movimientosSeleccionados, {
+        titulo: 'Movimientos Seleccionados',
+        contexto: 'seleccion'
+      });
+
+      if (result.success) {
+        setExportResult(result);
+        setActionSheetVisible(true);
+        
+        // Limpiar selección después de mostrar ActionSheet
+        setSelectedItems(new Set());
+      } else {
+        Alert.alert('Error', 'No se pudo exportar el archivo PDF.');
+      }
+
+      // No limpiar aquí, se hace después del ActionSheet
+      setSelectedItems(new Set());
+
+    } catch (error) {
+      console.error('Error al exportar seleccionados:', error);
+      Alert.alert(
+        'Error',
+        'Hubo un problema al generar el PDF. Por favor, inténtalo de nuevo.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const renderMovementItem = ({ item }) => {
+    const isSelected = selectedItems.has(item.id);
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.movementItem,
+          selectionMode && styles.movementItemSelectable,
+          isSelected && styles.movementItemSelected
+        ]}
+        onPress={selectionMode ? () => toggleItemSelection(item.id) : undefined}
+        activeOpacity={selectionMode ? 0.7 : 1}
+      >
+        {selectionMode && (
+          <View style={styles.checkboxContainer}>
+            <Ionicons 
+              name={isSelected ? 'checkbox' : 'checkbox-outline'} 
+              size={24} 
+              color={isSelected ? '#3E7D75' : '#ccc'} 
+            />
           </View>
-        </View>
-      </View>
-      {item.nota && (
-        <Text style={styles.movementNota}>{item.nota}</Text>
-      )}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity onPress={() => handleEditar(item)}>
-          <Text style={styles.actionLink}>Editar</Text>
-        </TouchableOpacity>
-        {item.estado !== 'pagado' && (
-          <TouchableOpacity onPress={() => handleMarcarPagado(item)}>
-            <Text style={styles.actionLink}>Marcar pagado</Text>
-          </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={() => handleBorrar(item)}>
-          <Text style={[styles.actionLink, { color: '#c62828' }]}>Borrar</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+        
+        <View style={[styles.movementContent, selectionMode && styles.movementContentWithCheckbox]}>
+          <View style={styles.movementHeader}>
+            <View style={styles.movementLeft}>
+              <Text style={styles.movementTipo}>
+                {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
+              </Text>
+              <Text style={styles.movementDate}>
+                {formatDate(item.fechaISO)}
+              </Text>
+            </View>
+            <View style={styles.movementRight}>
+              <Text style={[
+                styles.movementMonto,
+                { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
+              ]}>
+                {item.tipo === 'pago' ? '-' : '+'}${item.monto}
+              </Text>
+              <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado) }]}>
+                <Text style={styles.estadoText}>{item.estado}</Text>
+              </View>
+            </View>
+          </View>
+          {item.nota && (
+            <Text style={styles.movementNota}>{item.nota}</Text>
+          )}
+          {!selectionMode && (
+            <View style={styles.actionsRow}>
+              <TouchableOpacity onPress={() => handleEditar(item)}>
+                <Text style={styles.actionLink}>Editar</Text>
+              </TouchableOpacity>
+              {item.estado !== 'pagado' && (
+                <TouchableOpacity onPress={() => handleMarcarPagado(item)}>
+                  <Text style={styles.actionLink}>Marcar pagado</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => handleBorrar(item)}>
+                <Text style={[styles.actionLink, { color: '#c62828' }]}>Borrar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top','left','right']}>
-      <Text style={styles.title}>Historial</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>Historial</Text>
+        
+        {sortedMovimientos.length > 0 && (
+          <View style={styles.selectionToggleContainer}>
+            <Text style={styles.selectionToggleLabel}>Seleccionar para exportar</Text>
+            <Switch
+              value={selectionMode}
+              onValueChange={toggleSelectionMode}
+              trackColor={{ false: '#e0e0e0', true: '#3E7D75' }}
+              thumbColor={selectionMode ? '#FFFFFF' : '#f4f3f4'}
+              ios_backgroundColor="#e0e0e0"
+            />
+          </View>
+        )}
+      </View>
       
       {sortedMovimientos.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -140,6 +263,9 @@ export default function PantallaHistorial() {
           <Text style={styles.subtitle}>
             {sortedMovimientos.length} movimiento{sortedMovimientos.length !== 1 ? 's' : ''} 
             {filter ? ' (filtrados)' : ''}
+            {selectionMode && selectedItems.size > 0 && (
+              <Text style={styles.selectionCount}> • {selectedItems.size} seleccionado{selectedItems.size !== 1 ? 's' : ''}</Text>
+            )}
           </Text>
           <FlatList
             data={sortedMovimientos}
@@ -147,10 +273,43 @@ export default function PantallaHistorial() {
             renderItem={renderMovementItem}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              selectionMode && selectedItems.size > 0 && { paddingBottom: 100 }
+            ]}
           />
         </View>
       )}
+
+      {/* Botón flotante para exportar seleccionados */}
+      {selectionMode && selectedItems.size > 0 && (
+        <View style={styles.fabContainer}>
+          <TouchableOpacity 
+            style={[styles.fab, isExporting && styles.fabDisabled]}
+            onPress={handleExportarSeleccionados}
+            disabled={isExporting}
+            activeOpacity={0.8}
+          >
+            {isExporting ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Ionicons name="download" size={24} color="white" />
+            )}
+            <Text style={styles.fabText}>
+              {isExporting ? 'Exportando...' : `Exportar ${selectedItems.size}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ActionSheet para compartir */}
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={handleActionSheetClose}
+        fileUri={exportResult?.fileUri}
+        fileName={exportResult?.fileName}
+        mimeType={exportResult?.mimeType}
+      />
     </SafeAreaView>
   );
 }
@@ -162,16 +321,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#4D3527',
-    marginBottom: 16,
+  },
+  selectionToggleContainer: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  selectionToggleLabel: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
     color: '#666',
     marginBottom: 12,
+  },
+  selectionCount: {
+    color: '#3E7D75',
+    fontWeight: '600',
   },
   listContainer: {
     flex: 1,
@@ -205,6 +382,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  movementItemSelectable: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  movementItemSelected: {
+    borderColor: '#3E7D75',
+    backgroundColor: '#f0f7f6',
+  },
+  checkboxContainer: {
+    marginRight: 12,
+    paddingTop: 2,
+  },
+  movementContent: {
+    flex: 1,
+  },
+  movementContentWithCheckbox: {
+    flex: 1,
   },
   movementHeader: {
     flexDirection: 'row',
@@ -262,4 +459,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3E7D75',
   },
-});
+  // Estilos para FAB (Floating Action Button)
+  fabContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+  },
+  fab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3E7D75',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    gap: 8,
+  },
+  fabDisabled: {
+    backgroundColor: '#bdc3c7',
+  },
+  fabText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+}); 
