@@ -109,10 +109,26 @@ export default function PantallaHistorial() {
     setSelectedItems(newSelected);
   };
 
+  // Crear recordatorio desde movimiento
+  const handleCrearRecordatorio = (item) => {
+    navigation.navigate('ReminderFormScreen', {
+      linkedMovementId: item.id,
+      initialType: item.tipo === 'pago' ? 'pago' : 'cobro',
+      movementData: {
+        tipo: item.tipo,
+        monto: item.monto,
+        nota: item.nota,
+        fechaISO: item.fechaISO
+      }
+    });
+  };
+
   // Manejar cierre del ActionSheet
   const handleActionSheetClose = () => {
     setActionSheetVisible(false);
     setExportResult(null);
+    // Limpiar selección después de completar el ActionSheet
+    setSelectedItems(new Set());
   };
 
   // Exportar items seleccionados
@@ -142,15 +158,9 @@ export default function PantallaHistorial() {
       if (result.success) {
         setExportResult(result);
         setActionSheetVisible(true);
-        
-        // Limpiar selección después de mostrar ActionSheet
-        setSelectedItems(new Set());
       } else {
         Alert.alert('Error', 'No se pudo exportar el archivo PDF.');
       }
-
-      // No limpiar aquí, se hace después del ActionSheet
-      setSelectedItems(new Set());
 
     } catch (error) {
       console.error('Error al exportar seleccionados:', error);
@@ -222,6 +232,9 @@ export default function PantallaHistorial() {
                   <Text style={styles.actionLink}>Marcar pagado</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity onPress={() => handleCrearRecordatorio(item)}>
+                <Text style={[styles.actionLink, { color: '#3498DB' }]}>🔔 Recordatorio</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleBorrar(item)}>
                 <Text style={[styles.actionLink, { color: '#c62828' }]}>Borrar</Text>
               </TouchableOpacity>

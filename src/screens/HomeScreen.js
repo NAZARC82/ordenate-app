@@ -1,17 +1,52 @@
-import React, { useContext, useMemo } from "react";
+import React, { useContext, useMemo, useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { MovimientosContext } from "../state/MovimientosContext";
 import { fmtCurrency } from "../utils/fmt";
+import { ReminderService } from "../modules/reminders";
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { totalesInicio } = useContext(MovimientosContext);
+  const [reminderBadgeCount, setReminderBadgeCount] = useState(0);
+  
   const toNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const totalDebes = toNum(totalesInicio?.debes);
   const totalTeDeben = toNum(totalesInicio?.teDeben);
   const balance = toNum(totalesInicio?.balance);
+
+  // Inicializar servicio de recordatorios y obtener badge count
+  useEffect(() => {
+    const initializeReminders = async () => {
+      try {
+        await ReminderService.initialize();
+        const badgeCount = await ReminderService.getBadgeCount();
+        setReminderBadgeCount(badgeCount);
+      } catch (error) {
+        console.error('Error inicializando recordatorios:', error);
+      }
+    };
+
+    initializeReminders();
+  }, []);
+
+  // Actualizar badge count cuando la pantalla esté en foco
+  useFocusEffect(
+    React.useCallback(() => {
+      const updateBadgeCount = async () => {
+        try {
+          const badgeCount = await ReminderService.getBadgeCount();
+          setReminderBadgeCount(badgeCount);
+        } catch (error) {
+          console.error('Error actualizando badge count:', error);
+        }
+      };
+
+      updateBadgeCount();
+    }, [])
+  );
 
   return (
     <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
@@ -25,12 +60,23 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('Historial')}
         /> */}
         <Text style={s.title}>Ordénate</Text>
-        <Ionicons
-          name="notifications-outline"
-          size={24}
-          color="#1b1b1b"
-          onPress={() => alert("Próximamente: recordatorios")}
-        />
+        <TouchableOpacity 
+          style={s.notificationButton}
+          onPress={() => navigation.navigate('RemindersListScreen')}
+        >
+          <Ionicons
+            name="notifications-outline"
+            size={24}
+            color="#1b1b1b"
+          />
+          {reminderBadgeCount > 0 && (
+            <View style={s.badge}>
+              <Text style={s.badgeText}>
+                {reminderBadgeCount > 99 ? '99+' : reminderBadgeCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Buscar */}
@@ -53,7 +99,7 @@ export default function HomeScreen({ navigation }) {
 
       <BigBtn label="Agregar pago"  color="#DCE8FB" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "pago" })}/>
       <BigBtn label="Agregar cobro" color="#E7F7E9" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "cobro" })}/>
-      <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => alert("En breve")}/>
+      <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => navigation.navigate("ReminderFormScreen")}/>
     </View>
   );
 }
@@ -81,6 +127,27 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   title: { fontSize: 20, fontWeight: "800", color: "#111" },
+
+  notificationButton: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#e74c3c',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 
   searchWrap: {
     flexDirection: "row",

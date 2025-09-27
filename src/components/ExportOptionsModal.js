@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
-import { exportarCSV, generarVistaPreviaHTML } from '../utils/pdfExport';
+import { exportarCSV, exportarPDFSeleccion, generarVistaPreviaHTML } from '../utils/pdfExport';
 import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
 
@@ -281,7 +281,8 @@ const ExportOptionsModal = ({
       // Guardar opciones antes de exportar
       await saveOptions();
       
-      const result = await onExport(movsFiltrados, {
+      // Usar exportarPDFSeleccion directamente como en PantallaHistorial
+      const result = await exportarPDFSeleccion(movsFiltrados, {
         columnas: columnasSeleccionadas,
         titulo: 'Reporte Filtrado',
         subtitulo: `${movsFiltrados.length} movimiento(s) - ${getRangoTexto()}`,

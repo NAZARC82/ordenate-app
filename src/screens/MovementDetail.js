@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
 import { getEstadoColor } from '../utils/estadoColor';
+import { ReminderService } from '../modules/reminders';
 
 export default function MovementDetail() {
   const route = useRoute();
@@ -18,6 +19,7 @@ export default function MovementDetail() {
   const [nota, setNota] = useState('');
   const [estado, setEstado] = useState('pendiente');
   const [fechaISO, setFechaISO] = useState(new Date().toISOString());
+  const [linkedReminders, setLinkedReminders] = useState([]);
 
   // Buscar movimiento existente para modo edit
   const existingMovimiento = useMemo(() => {
@@ -45,6 +47,56 @@ export default function MovementDetail() {
       setFechaISO(existingMovimiento.fechaISO);
     }
   }, [mode, preset, existingMovimiento]);
+
+  // Cargar recordatorios vinculados
+  useEffect(() => {
+    if (existingMovimiento?.id) {
+      loadLinkedReminders(existingMovimiento.id);
+    }
+  }, [existingMovimiento?.id]);
+
+  // Manejar cambios de estado (completar recordatorios si se marca como pagado)
+  useEffect(() => {
+    if (existingMovimiento && estado === 'pagado' && existingMovimiento.estado !== 'pagado') {
+      // El movimiento se marcó como pagado, completar recordatorios
+      handleMovementPaid(existingMovimiento.id);
+    }
+  }, [estado, existingMovimiento]);
+
+  const loadLinkedReminders = async (movementId) => {
+    try {
+      // TODO: Implementar getRemindersByMovement en el servicio
+      console.log('TODO: Cargar recordatorios vinculados para:', movementId);
+      setLinkedReminders([]);
+    } catch (error) {
+      console.error('Error cargando recordatorios vinculados:', error);
+    }
+  };
+
+  const handleMovementPaid = async (movementId) => {
+    try {
+      await ReminderService.completeLinkedMovement(movementId);
+      console.log('Recordatorios completados para movimiento:', movementId);
+    } catch (error) {
+      console.error('Error completando recordatorios:', error);
+    }
+  };
+
+  const handleCreateReminder = () => {
+    const movementId = existingMovimiento?.id;
+    const reminderType = tipo; // 'pago' o 'cobro'
+    
+    navigation.navigate('ReminderFormScreen', {
+      linkedMovementId: movementId,
+      initialType: reminderType,
+      movementData: {
+        tipo,
+        monto: Number(monto) || 0,
+        nota: nota.trim() || undefined,
+        fechaISO: fecha
+      }
+    });
+  };
 
   const handleSave = () => {
     if (!monto || isNaN(Number(monto))) {
@@ -226,8 +278,20 @@ export default function MovementDetail() {
           style={[styles.button, styles.cancelButton]} 
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.cancelButtonText}>Cancelar</Text>
+          <Text style={styles.cancelButtonText}>
+            {(mode === 'create' || mode === 'edit') ? 'Cancelar' : 'Volver'}
+          </Text>
         </TouchableOpacity>
+        
+        {mode === 'view' && existingMovimiento && (
+          <TouchableOpacity 
+            style={[styles.button, styles.reminderButton]} 
+            onPress={handleCreateReminder}
+          >
+            <Ionicons name="notifications" size={16} color="white" style={{ marginRight: 8 }} />
+            <Text style={styles.buttonText}>Recordatorio</Text>
+          </TouchableOpacity>
+        )}
         
         {(mode === 'create' || mode === 'edit') && (
           <TouchableOpacity style={styles.button} onPress={handleSave}>
@@ -340,6 +404,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  reminderButton: {
+    backgroundColor: '#f39c12',
   },
   buttonText: {
     color: '#FFFFFF',
