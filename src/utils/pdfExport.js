@@ -190,28 +190,28 @@ function buildPdfHtml(movimientos, options = {}) {
       const cells = [];
       
       if (columnas.includes('fecha')) {
-        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0;">${formatDate(mov.fechaISO)}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0;">${formatDate(mov.fechaISO)}</td>`);
       }
       
       if (columnas.includes('tipo')) {
         const tipoTexto = mov.tipo === 'pago' ? 'Pago' : 'Cobro';
         const tipoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
-        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: ${tipoColor};">${tipoTexto}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: ${tipoColor};">${tipoTexto}</td>`);
       }
       
       if (columnas.includes('monto')) {
         const signo = mov.tipo === 'pago' ? '–' : '+';
         const montoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
         const montoTexto = `${signo}$${formatCurrency(mov.monto)}`;
-        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold; color: ${montoColor};">${montoTexto}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold; color: ${montoColor};">${montoTexto}</td>`);
       }
       
       if (columnas.includes('estado')) {
         const estadoTexto = mov.estado || 'pendiente';
         const estadoColor = getEstadoColorPDF(estadoTexto);
         cells.push(`
-          <td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0;">
-            <span style="background-color: ${estadoColor}; color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; display: inline-block;">
+          <td style="border-bottom: 1px solid #e0e0e0;">
+            <span class="badge" style="background-color: ${estadoColor}; color: white;">
               ${estadoTexto}
             </span>
           </td>
@@ -220,7 +220,7 @@ function buildPdfHtml(movimientos, options = {}) {
       
       if (columnas.includes('nota')) {
         const notaTexto = mov.nota || '—';
-        cells.push(`<td style="padding: 10px 8px; border-bottom: 1px solid #e0e0e0; max-width: 150px; word-wrap: break-word; color: #555;">${notaTexto}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; word-wrap: break-word; color: #555;">${notaTexto}</td>`);
       }
 
       return `<tr style="${rowStyle} page-break-inside: avoid;">${cells.join('')}</tr>`;
@@ -269,7 +269,7 @@ function buildPdfHtml(movimientos, options = {}) {
                 background: #f6f7f9;
             }
             *, *::before, *::after {
-                box-sizing: inherit;
+                box-sizing: border-box;
             }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
@@ -279,7 +279,7 @@ function buildPdfHtml(movimientos, options = {}) {
             }
             .page {
                 width: 100%;
-                max-width: 900px;
+                max-width: 880px;
                 margin: 0 auto;
                 padding: 16px;
             }
@@ -292,7 +292,15 @@ function buildPdfHtml(movimientos, options = {}) {
             th, td {
                 word-wrap: break-word;
                 overflow-wrap: break-word;
+                padding: 10px;
             }
+            /* Column widths for better layout */
+            th:nth-child(1) { width: 20%; } /* Fecha */
+            th:nth-child(2) { width: 16%; } /* Tipo */
+            th:nth-child(3) { width: 18%; } /* Monto */
+            th:nth-child(4) { width: 18%; } /* Estado */
+            th:nth-child(5) { width: 28%; } /* Nota */
+            
             img, svg, canvas, video {
                 max-width: 100%;
                 height: auto;
@@ -327,41 +335,42 @@ function buildPdfHtml(movimientos, options = {}) {
             .summary {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
-                padding: 25px;
-                border-radius: 12px;
+                padding: 16px;
+                border-radius: 16px;
                 margin-bottom: 30px;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
                 page-break-inside: avoid;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
             }
             .summary h3 {
-                margin: 0 0 20px 0;
-                font-size: 18px;
+                grid-column: 1 / -1;
+                margin: 0 0 16px 0;
+                font-size: 16px;
                 font-weight: 600;
                 text-align: center;
             }
-            .summary-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 15px;
-            }
             .summary-item {
                 text-align: center;
-                padding: 15px;
+                padding: 12px 10px;
                 background: rgba(255,255,255,0.15);
-                border-radius: 8px;
+                border-radius: 12px;
                 backdrop-filter: blur(10px);
             }
             .summary-item .label {
                 display: block;
                 font-size: 12px;
+                line-height: 16px;
                 opacity: 0.9;
-                margin-bottom: 8px;
+                margin-bottom: 6px;
                 font-weight: 500;
             }
             .summary-item .value {
                 display: block;
                 font-size: 18px;
-                font-weight: bold;
+                line-height: 22px;
+                font-weight: 700;
                 text-shadow: 0 1px 2px rgba(0,0,0,0.1);
             }
             .table-container {
@@ -370,19 +379,28 @@ function buildPdfHtml(movimientos, options = {}) {
                 overflow: hidden;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                 background: white;
-                overflow-x: auto;
+                overflow-x: hidden;
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
                 background: white;
-                min-width: 100%;
+            }
+            /* Badge styles for estado column */
+            .badge {
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 10px;
+                font-size: 10px;
+                line-height: 12px;
+                font-weight: 700;
+                white-space: nowrap;
+                text-transform: uppercase;
             }
             th {
                 background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
                 color: white;
                 font-weight: 700;
-                padding: 15px 12px;
                 text-align: left;
                 font-size: 12px;
                 letter-spacing: 0.5px;
@@ -420,6 +438,46 @@ function buildPdfHtml(movimientos, options = {}) {
                 font-weight: 600;
                 color: #3498db;
                 margin-bottom: 5px;
+            }
+            /* Mobile responsive styles */
+            @media (max-width: 420px) {
+                .page {
+                    padding: 12px;
+                }
+                .summary {
+                    gap: 10px;
+                    padding: 12px;
+                    border-radius: 12px;
+                }
+                .summary h3 {
+                    font-size: 14px;
+                    margin-bottom: 12px;
+                }
+                .summary-item {
+                    padding: 10px 8px;
+                    border-radius: 10px;
+                }
+                .summary-item .label {
+                    font-size: 11px;
+                    line-height: 14px;
+                }
+                .summary-item .value {
+                    font-size: 16px;
+                    line-height: 20px;
+                }
+                th, td {
+                    padding: 8px;
+                }
+                th:nth-child(1) { width: 22%; }
+                th:nth-child(2) { width: 16%; }
+                th:nth-child(3) { width: 18%; }
+                th:nth-child(4) { width: 16%; }
+                th:nth-child(5) { width: 28%; }
+                .badge {
+                    padding: 3px 6px;
+                    font-size: 9px;
+                    line-height: 11px;
+                }
             }
             @media print {
                 body { 
