@@ -242,7 +242,7 @@ function buildPdfHtml(movimientos, options = {}) {
     <html>
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+        <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=3.0, user-scalable=yes">
         <title>Reporte - Ordenate</title>
         <style>
             @page {
@@ -335,43 +335,46 @@ function buildPdfHtml(movimientos, options = {}) {
             .summary {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
-                padding: 16px;
-                border-radius: 16px;
-                margin-bottom: 30px;
+                padding: 14px;
+                border-radius: 14px;
+                margin-bottom: 24px;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
                 page-break-inside: avoid;
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 12px;
+                gap: 10px;
             }
             .summary h3 {
                 grid-column: 1 / -1;
-                margin: 0 0 16px 0;
-                font-size: 16px;
+                margin: 0 0 12px 0;
+                font-size: 15px;
                 font-weight: 600;
                 text-align: center;
+                white-space: nowrap;
             }
             .summary-item {
                 text-align: center;
-                padding: 12px 10px;
+                padding: 10px 8px;
                 background: rgba(255,255,255,0.15);
-                border-radius: 12px;
+                border-radius: 10px;
                 backdrop-filter: blur(10px);
             }
             .summary-item .label {
                 display: block;
-                font-size: 12px;
-                line-height: 16px;
+                font-size: 11px;
+                line-height: 14px;
                 opacity: 0.9;
-                margin-bottom: 6px;
+                margin-bottom: 4px;
                 font-weight: 500;
+                white-space: nowrap;
             }
             .summary-item .value {
                 display: block;
-                font-size: 18px;
-                line-height: 22px;
+                font-size: 16px;
+                line-height: 20px;
                 font-weight: 700;
                 text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                white-space: nowrap;
             }
             .table-container {
                 margin-top: 25px;
@@ -389,22 +392,28 @@ function buildPdfHtml(movimientos, options = {}) {
             /* Badge styles for estado column */
             .badge {
                 display: inline-block;
-                padding: 4px 8px;
-                border-radius: 10px;
-                font-size: 10px;
-                line-height: 12px;
+                padding: 3px 6px;
+                border-radius: 8px;
+                font-size: 9px;
+                line-height: 11px;
                 font-weight: 700;
                 white-space: nowrap;
                 text-transform: uppercase;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             th {
                 background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
                 color: white;
                 font-weight: 700;
                 text-align: left;
-                font-size: 12px;
-                letter-spacing: 0.5px;
+                font-size: 11px;
+                letter-spacing: 0.3px;
                 border-bottom: 2px solid #2980b9;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             tbody tr:nth-child(odd) {
                 background-color: #ffffff;
@@ -442,41 +451,45 @@ function buildPdfHtml(movimientos, options = {}) {
             /* Mobile responsive styles */
             @media (max-width: 420px) {
                 .page {
-                    padding: 12px;
+                    padding: 10px;
                 }
                 .summary {
-                    gap: 10px;
-                    padding: 12px;
-                    border-radius: 12px;
-                }
-                .summary h3 {
-                    font-size: 14px;
-                    margin-bottom: 12px;
-                }
-                .summary-item {
-                    padding: 10px 8px;
+                    gap: 8px;
+                    padding: 10px;
                     border-radius: 10px;
                 }
+                .summary h3 {
+                    font-size: 13px;
+                    margin-bottom: 10px;
+                }
+                .summary-item {
+                    padding: 8px 6px;
+                    border-radius: 8px;
+                }
                 .summary-item .label {
-                    font-size: 11px;
-                    line-height: 14px;
+                    font-size: 10px;
+                    line-height: 12px;
                 }
                 .summary-item .value {
-                    font-size: 16px;
-                    line-height: 20px;
+                    font-size: 14px;
+                    line-height: 18px;
                 }
                 th, td {
-                    padding: 8px;
+                    padding: 6px;
+                    font-size: 10px;
                 }
-                th:nth-child(1) { width: 22%; }
-                th:nth-child(2) { width: 16%; }
-                th:nth-child(3) { width: 18%; }
-                th:nth-child(4) { width: 16%; }
-                th:nth-child(5) { width: 28%; }
+                th {
+                    font-size: 10px;
+                }
+                th:nth-child(1) { width: 20%; }
+                th:nth-child(2) { width: 15%; }
+                th:nth-child(3) { width: 20%; }
+                th:nth-child(4) { width: 15%; }
+                th:nth-child(5) { width: 30%; }
                 .badge {
-                    padding: 3px 6px;
-                    font-size: 9px;
-                    line-height: 11px;
+                    padding: 2px 4px;
+                    font-size: 8px;
+                    line-height: 10px;
                 }
             }
             @media print {

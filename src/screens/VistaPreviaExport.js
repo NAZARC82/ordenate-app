@@ -159,16 +159,20 @@ const VistaPreviaExport = ({ route, navigation }) => {
           bounces={false}
           automaticallyAdjustContentInsets={false}
           androidHardwareAccelerationDisabled={false}
-          injectedJavaScriptBeforeContentLoaded={`
+          injectedJavaScript={`
             (function() {
-              // Ensure viewport meta exists for proper zoom
-              var m = document.querySelector('meta[name=viewport]');
-              if (!m) {
-                m = document.createElement('meta');
-                m.name = 'viewport';
-                m.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
-                document.head.appendChild(m);
+              // Ensure content fits to screen width
+              const viewport = document.querySelector('meta[name=viewport]');
+              if (viewport) {
+                viewport.content = 'width=device-width, initial-scale=0.85, maximum-scale=3.0, user-scalable=yes';
               }
+              
+              // Center content and ensure no horizontal scroll
+              document.body.style.overflow = 'hidden auto';
+              document.documentElement.style.overflow = 'hidden auto';
+              
+              // Add touch-action for better zoom control
+              document.body.style.touchAction = 'pan-x pan-y pinch-zoom';
             })();
             true;
           `}
