@@ -33,6 +33,7 @@ export default function SettingsScreen() {
         contexto: 'filtrado'
       });
       
+      // Retornar el resultado para que ExportOptionsModal lo maneje
       return result;
       
     } catch (error) {

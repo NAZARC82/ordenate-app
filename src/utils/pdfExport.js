@@ -829,14 +829,15 @@ export async function exportarCSV(movimientos, opciones = {}) {
 
     console.log('[export] CSV: Nombre archivo:', nombreArchivo);
 
-    // Usar cacheDirectory para mejor compatibilidad
-    const fileUri = `${FileSystem.cacheDirectory}${nombreArchivo}`;
+    // Usar cacheDirectory o documentDirectory como fallback
+    const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    const fileUri = `${baseDirectory}${nombreArchivo}`;
     
     console.log('[export] CSV: Escribiendo archivo en:', fileUri);
     
     // Escribir contenido CSV al archivo
     await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
     console.log('[export] CSV: Archivo escrito exitosamente');

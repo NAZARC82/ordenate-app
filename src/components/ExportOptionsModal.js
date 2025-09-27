@@ -229,6 +229,8 @@ const ExportOptionsModal = ({
       throw new Error('Debe seleccionar al menos un estado');
     }
     movsFiltrados = movsFiltrados.filter(mov => {
+      // Validar que el movimiento tenga datos mínimos
+      if (!mov || typeof mov !== 'object') return false;
       const estado = mov.estado || 'pendiente';
       return estadosSeleccionados.includes(estado);
     });
@@ -290,16 +292,30 @@ const ExportOptionsModal = ({
       if (result && result.success) {
         setExportResult(result);
         setActionSheetVisible(true);
+        // No cerrar el modal aquí - se cierra cuando se complete el ActionSheet
       } else {
-        Alert.alert('Error', 'No se pudo exportar el archivo PDF.');
+        const errorMsg = result?.message || 'No se pudo exportar el archivo PDF.';
+        Alert.alert('Error de Exportación', errorMsg);
+        // Solo cerrar si hay error
+        onClose();
       }
-      
-      onClose();
       
     } catch (error) {
       console.error('[export] Error al exportar PDF:', error.message);
       console.error('[export] Stack trace:', error.stack);
-      Alert.alert('Error', `No se pudo exportar el archivo PDF: ${error.message}`);
+      
+      let userMessage = 'No se pudo exportar el archivo PDF.';
+      if (error.message.includes('Fechas')) {
+        userMessage = 'Verifica las fechas ingresadas (formato: dd/mm/aaaa).';
+      } else if (error.message.includes('columna') || error.message.includes('estado')) {
+        userMessage = 'Selecciona al menos una columna y un estado.';
+      } else if (error.message.includes('Sin resultados')) {
+        userMessage = 'No hay movimientos que coincidan con los filtros.';
+      }
+      
+      Alert.alert('Error de Exportación', userMessage);
+      // Cerrar modal en caso de error
+      onClose();
     } finally {
       setLocalLoading(false);
     }
@@ -349,16 +365,32 @@ const ExportOptionsModal = ({
       if (result.success) {
         setExportResult(result);
         setActionSheetVisible(true);
+        // No cerrar el modal aquí - se cierra cuando se complete el ActionSheet
       } else {
-        Alert.alert('Error', 'No se pudo exportar el archivo CSV.');
+        const errorMsg = result?.message || 'No se pudo exportar el archivo CSV.';
+        Alert.alert('Error de Exportación', errorMsg);
+        // Solo cerrar si hay error
+        onClose();
       }
-      
-      onClose();
       
     } catch (error) {
       console.error('[export] Error al exportar CSV:', error.message);
       console.error('[export] Stack trace:', error.stack);
-      Alert.alert('Error', `No se pudo exportar el archivo CSV: ${error.message}`);
+      
+      let userMessage = 'No se pudo exportar el archivo CSV.';
+      if (error.message.includes('Fechas')) {
+        userMessage = 'Verifica las fechas ingresadas (formato: dd/mm/aaaa).';
+      } else if (error.message.includes('columna') || error.message.includes('estado')) {
+        userMessage = 'Selecciona al menos una columna y un estado.';
+      } else if (error.message.includes('Sin resultados')) {
+        userMessage = 'No hay movimientos que coincidan con los filtros.';
+      } else if (error.message.includes('write') || error.message.includes('storage')) {
+        userMessage = 'Error escribiendo el archivo. Verifica el espacio disponible.';
+      }
+      
+      Alert.alert('Error de Exportación', userMessage);
+      // Cerrar modal en caso de error
+      onClose();
     } finally {
       setLocalLoading(false);
     }
@@ -460,6 +492,8 @@ const ExportOptionsModal = ({
   const handleActionSheetClose = () => {
     setActionSheetVisible(false);
     setExportResult(null);
+    // Cerrar el modal después de que se complete el ActionSheet
+    onClose();
   };
 
   // Manejar cierre del modal guardando opciones
