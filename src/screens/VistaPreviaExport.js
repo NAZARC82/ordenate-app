@@ -149,7 +149,7 @@ const VistaPreviaExport = ({ route, navigation }) => {
             );
           }}
           showsVerticalScrollIndicator={true}
-          showsHorizontalScrollIndicator={false}
+          showsHorizontalScrollIndicator={true}
           scalesPageToFit={false}
           contentMode="mobile"
           startInLoadingState={false}
@@ -167,9 +167,11 @@ const VistaPreviaExport = ({ route, navigation }) => {
                 viewport.content = 'width=device-width, initial-scale=0.85, maximum-scale=3.0, user-scalable=yes';
               }
               
-              // Center content and ensure no horizontal scroll
-              document.body.style.overflow = 'hidden auto';
-              document.documentElement.style.overflow = 'hidden auto';
+              // Allow horizontal scroll for summary section only
+              document.body.style.overflowX = 'auto';
+              document.body.style.overflowY = 'auto';
+              document.documentElement.style.overflowX = 'auto';
+              document.documentElement.style.overflowY = 'auto';
               
               // Add touch-action for better zoom control
               document.body.style.touchAction = 'pan-x pan-y pinch-zoom';

@@ -340,9 +340,18 @@ function buildPdfHtml(movimientos, options = {}) {
                 margin-bottom: 24px;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
                 page-break-inside: avoid;
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 10px;
+                text-align: center;
+            }
+            .summary-grid {
+                display: flex;
+                justify-content: center;
+                align-items: stretch;
+                gap: 12px;
+                margin-top: 12px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 2px;
+                scroll-behavior: smooth;
             }
             .summary h3 {
                 grid-column: 1 / -1;
@@ -353,11 +362,15 @@ function buildPdfHtml(movimientos, options = {}) {
                 white-space: nowrap;
             }
             .summary-item {
+                flex: 0 0 auto;
+                min-width: 140px;
+                max-width: 180px;
                 text-align: center;
-                padding: 10px 8px;
+                padding: 12px 10px;
                 background: rgba(255,255,255,0.15);
                 border-radius: 10px;
                 backdrop-filter: blur(10px);
+                white-space: nowrap;
             }
             .summary-item .label {
                 display: block;
@@ -392,16 +405,17 @@ function buildPdfHtml(movimientos, options = {}) {
             /* Badge styles for estado column */
             .badge {
                 display: inline-block;
-                padding: 3px 6px;
-                border-radius: 8px;
-                font-size: 9px;
-                line-height: 11px;
+                padding: 2px 5px;
+                border-radius: 6px;
+                font-size: 8px;
+                line-height: 10px;
                 font-weight: 700;
                 white-space: nowrap;
                 text-transform: uppercase;
-                max-width: 100%;
+                max-width: 50px;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                vertical-align: middle;
             }
             th {
                 background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
@@ -454,15 +468,21 @@ function buildPdfHtml(movimientos, options = {}) {
                     padding: 10px;
                 }
                 .summary {
-                    gap: 8px;
                     padding: 10px;
                     border-radius: 10px;
+                }
+                .summary-grid {
+                    gap: 8px;
+                    justify-content: flex-start;
+                    padding-bottom: 4px;
                 }
                 .summary h3 {
                     font-size: 13px;
                     margin-bottom: 10px;
                 }
                 .summary-item {
+                    min-width: 120px;
+                    max-width: 150px;
                     padding: 8px 6px;
                     border-radius: 8px;
                 }
@@ -487,9 +507,10 @@ function buildPdfHtml(movimientos, options = {}) {
                 th:nth-child(4) { width: 15%; }
                 th:nth-child(5) { width: 30%; }
                 .badge {
-                    padding: 2px 4px;
-                    font-size: 8px;
-                    line-height: 10px;
+                    padding: 1px 3px;
+                    font-size: 7px;
+                    line-height: 9px;
+                    max-width: 40px;
                 }
             }
             @media print {
