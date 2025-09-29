@@ -23,18 +23,34 @@ export default function PantallaHistorial() {
   const [exportResult, setExportResult] = useState(null);
 
   useLayoutEffect(() => {
+    // Título dinámico según el filtro
+    let title = 'Historial';
+    if (filter?.tipo === 'pago') {
+      title = 'Historial - Pagos';
+    } else if (filter?.tipo === 'cobro') {
+      title = 'Historial - Cobros';
+    } else if (filter?.day) {
+      title = `Historial - ${filter.day}`;
+    } else if (filter?.estado) {
+      title = `Historial - ${filter.estado}`;
+    }
+    
     navigation.setOptions?.({
-      title: 'Historial',
+      title,
       headerBackTitle: 'Volver',
     });
-  }, [navigation]);
+  }, [navigation, filter]);
 
   // Global list ordered DESC by fechaISO, independent of calendar
   const filtered = useMemo(() => {
     let base = [...movimientos];
+    
+    // Filtro por día
     if (filter?.day) {
       base = base.filter(m => getDateString(m.fechaISO) === filter.day);
     }
+    
+    // Filtro por estado
     if (filter?.estado) {
       if (filter.estado === 'no-pagado') {
         base = base.filter(m => m.estado !== 'pagado');
@@ -42,6 +58,12 @@ export default function PantallaHistorial() {
         base = base.filter(m => m.estado === filter.estado);
       }
     }
+    
+    // Filtro por tipo (pago/cobro)
+    if (filter?.tipo) {
+      base = base.filter(m => m.tipo === filter.tipo);
+    }
+    
     return base;
   }, [movimientos, filter]);
 
@@ -250,6 +272,63 @@ export default function PantallaHistorial() {
       <View style={styles.headerContainer}>
         <Text style={styles.title}>Historial</Text>
         
+        {/* Botones de filtrado por tipo */}
+        <View style={styles.filterContainer}>
+          <TouchableOpacity 
+            style={[
+              styles.filterButton, 
+              !filter?.tipo && styles.filterButtonActive
+            ]}
+            onPress={() => navigation.navigate('Historial')}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              !filter?.tipo && styles.filterButtonTextActive
+            ]}>
+              Todos
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.filterButton, 
+              filter?.tipo === 'pago' && styles.filterButtonActive
+            ]}
+            onPress={() => navigation.navigate('Historial', { filter: { tipo: 'pago' } })}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              filter?.tipo === 'pago' && styles.filterButtonTextActive
+            ]}>
+              Pagos
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.filterButton, 
+              filter?.tipo === 'cobro' && styles.filterButtonActive
+            ]}
+            onPress={() => navigation.navigate('Historial', { filter: { tipo: 'cobro' } })}
+          >
+            <Text style={[
+              styles.filterButtonText,
+              filter?.tipo === 'cobro' && styles.filterButtonTextActive
+            ]}>
+              Cobros
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Botón para crear recordatorio general */}
+        <TouchableOpacity 
+          style={styles.generalReminderButton}
+          onPress={() => navigation.navigate('ReminderFormScreen', { initialType: 'general' })}
+        >
+          <Ionicons name="notifications-outline" size={20} color="#3498DB" />
+          <Text style={styles.generalReminderText}>Nuevo Recordatorio</Text>
+        </TouchableOpacity>
+        
         {sortedMovimientos.length > 0 && (
           <View style={styles.selectionToggleContainer}>
             <Text style={styles.selectionToggleLabel}>Seleccionar para exportar</Text>
@@ -335,15 +414,50 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  filterContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EEE9E2',
+    borderRadius: 10,
+    padding: 4,
+    marginTop: 12,
+    gap: 4,
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#3E7D75',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#4D3527',
+  },
+  filterButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  generalReminderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#3498DB',
+    gap: 8,
+  },
+  generalReminderText: {
+    color: '#3498DB',
+    fontSize: 14,
+    fontWeight: '600',
   },
   selectionToggleContainer: {
     alignItems: 'center',

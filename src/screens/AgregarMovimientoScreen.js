@@ -65,10 +65,13 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
         </InputAccessoryView>
       )}
       
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex:1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardContainer}>
         <ScrollView 
+          style={styles.scrollView}
           contentContainerStyle={styles.container} 
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
           onStartShouldSetResponder={() => {
             Keyboard.dismiss();
             return false;
@@ -150,7 +153,19 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#FCFCF8', flexGrow: 1 },
+  keyboardContainer: { 
+    flex: 1 
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#FCFCF8'
+  },
+  container: { 
+    padding: 16, 
+    backgroundColor: '#FCFCF8', 
+    flexGrow: 1,
+    paddingBottom: 40 // Espacio extra para asegurar scroll completo
+  },
   title: { fontSize: 20, color: '#4D3527', marginBottom: 12, fontWeight: '700' },
   label: { color: '#4D3527', marginTop: 12, marginBottom: 6 },
   input: {
