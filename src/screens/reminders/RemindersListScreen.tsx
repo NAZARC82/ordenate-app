@@ -153,10 +153,22 @@ const RemindersListScreen = () => {
 
   const handleCompleteReminder = async (reminder: Reminder) => {
     try {
-      // TODO: Implementar lógica de completar
-      console.log('TODO: Completar recordatorio:', reminder.id);
+      // Actualizar estado del recordatorio a completado
+      const updatedReminder: Reminder = {
+        ...reminder,
+        status: 'completado',
+        updatedAt: new Date().toISOString()
+      };
+
+      await ReminderService.updateReminder(updatedReminder);
+      
+      // Recargar la lista para reflejar los cambios
       await loadReminders();
+      
+      // Feedback al usuario
+      Alert.alert('Éxito', 'Recordatorio marcado como completado');
     } catch (error) {
+      console.error('[RemindersListScreen] Error completando recordatorio:', error);
       Alert.alert('Error', 'No se pudo marcar como completado');
     }
   };

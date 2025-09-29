@@ -19,6 +19,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { 
   ReminderService, 
   ReminderDraft, 
+  Reminder,
   ReminderType, 
   RepeatFrequency,
   DEFAULT_ADVANCE_OPTIONS 
@@ -51,7 +52,7 @@ const ReminderFormScreen = () => {
   const [repeat, setRepeat] = useState('nunca');
   const [selectedAdvances, setSelectedAdvances] = useState([60]); // 1 hora por defecto
   const [notes, setNotes] = useState('');
-  const [linkedMovementId] = useState(params.linkedMovementId);
+  const [linkedMovementId, setLinkedMovementId] = useState(params.linkedMovementId);
 
   // Estados de UI
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -91,8 +92,30 @@ const ReminderFormScreen = () => {
   }, [params.reminderId, type]);
 
   const loadReminderForEdit = async () => {
-    // TODO: Implementar carga de recordatorio existente
-    console.log('TODO: Cargar recordatorio para editar:', params.reminderId);
+    try {
+      if (!params.reminderId) return;
+      
+      const reminder = await ReminderService.getReminder(params.reminderId);
+      if (!reminder) {
+        Alert.alert('Error', 'Recordatorio no encontrado');
+        navigation.goBack();
+        return;
+      }
+
+      // Llenar el formulario con los datos del recordatorio
+      setTitle(reminder.title);
+      setType(reminder.type);
+      setDatetime(new Date(reminder.datetimeISO));
+      setSelectedAdvances(reminder.advance);
+      setRepeat(reminder.repeat);
+      setNotes(reminder.notes || '');
+      setLinkedMovementId(reminder.linkedMovementId);
+      
+      console.log('[ReminderForm] Recordatorio cargado para editar:', reminder.id);
+    } catch (error) {
+      console.error('[ReminderForm] Error cargando recordatorio:', error);
+      Alert.alert('Error', 'No se pudo cargar el recordatorio');
+    }
   };
 
   const generateAutoTitle = () => {
@@ -209,8 +232,24 @@ const ReminderFormScreen = () => {
       };
 
       if (params.reminderId) {
-        // TODO: Implementar actualización
-        console.log('TODO: Actualizar recordatorio:', params.reminderId);
+        // Actualizar recordatorio existente
+        const existingReminder = await ReminderService.getReminder(params.reminderId);
+        if (!existingReminder) {
+          throw new Error('Recordatorio no encontrado');
+        }
+
+        const updatedReminder: Reminder = {
+          ...existingReminder,
+          title: reminderDraft.title,
+          type: reminderDraft.type,
+          datetimeISO: reminderDraft.datetimeISO,
+          advance: reminderDraft.advance,
+          repeat: reminderDraft.repeat,
+          notes: reminderDraft.notes,
+          updatedAt: new Date().toISOString()
+        };
+
+        await ReminderService.updateReminder(updatedReminder);
       } else {
         // Crear nuevo recordatorio
         await ReminderService.createReminder(reminderDraft);

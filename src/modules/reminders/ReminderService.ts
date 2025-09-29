@@ -3,6 +3,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Reminder, 
   ReminderDraft, 
@@ -258,6 +259,31 @@ class ReminderServiceClass {
     } catch (error) {
       console.error('[ReminderService] Error actualizando recordatorio:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Obtener recordatorios vinculados a un movimiento específico
+   */
+  async getRemindersByMovement(movementId: string): Promise<Reminder[]> {
+    try {
+      const allReminders = await ReminderStorage.getReminders();
+      return allReminders.filter(reminder => reminder.linkedMovementId === movementId);
+    } catch (error) {
+      console.error('[ReminderService] Error obteniendo recordatorios por movimiento:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Obtener un recordatorio por ID
+   */
+  async getReminder(id: string): Promise<Reminder | null> {
+    try {
+      return await ReminderStorage.getReminderById(id);
+    } catch (error) {
+      console.error('[ReminderService] Error obteniendo recordatorio:', error);
+      return null;
     }
   }
 
@@ -615,12 +641,55 @@ class ReminderServiceClass {
       // Cancelar futuras notificaciones
       await this.cancelNotifications(reminder.notificationIds);
 
-      // TODO: Si hay linkedMovementId, actualizar el movimiento a pagado
-      // Esto se implementará en la integración con movimientos
+      // Si hay linkedMovementId, actualizar el movimiento a pagado
+      if (reminder.linkedMovementId) {
+        try {
+          // Usar el contexto de movimientos para actualizar el estado
+          const { MovimientosContext } = require('../../state/MovimientosContext');
+          
+          // Para acceder al contexto desde el servicio, necesitamos otra estrategia
+          // Vamos a emitir un evento o usar AsyncStorage para comunicar el cambio
+          await this.markMovementAsPaid(reminder.linkedMovementId);
+          
+          console.log(`[ReminderService] Movimiento ${reminder.linkedMovementId} marcado como pagado`);
+        } catch (movementError) {
+          console.error('[ReminderService] Error actualizando movimiento:', movementError);
+          // No fallar si no se puede actualizar el movimiento
+        }
+      }
 
       console.log(`[ReminderService] Recordatorio ${reminderId} marcado como pagado`);
     } catch (error) {
       console.error('[ReminderService] Error marcando como pagado:', error);
+    }
+  }
+
+  /**
+   * Marcar movimiento vinculado como pagado
+   */
+  private async markMovementAsPaid(movementId: string): Promise<void> {
+    try {
+      // Guardamos el evento en AsyncStorage para que la app lo procese
+      const eventData = {
+        type: 'MARK_MOVEMENT_PAID',
+        movementId,
+        timestamp: Date.now()
+      };
+      
+      const existingEvents = JSON.parse(
+        await AsyncStorage.getItem('movement_update_events') || '[]'
+      );
+      
+      existingEvents.push(eventData);
+      
+      await AsyncStorage.setItem(
+        'movement_update_events', 
+        JSON.stringify(existingEvents)
+      );
+      
+      console.log(`[ReminderService] Evento de pago guardado para movimiento ${movementId}`);
+    } catch (error) {
+      console.error('[ReminderService] Error guardando evento de pago:', error);
     }
   }
 

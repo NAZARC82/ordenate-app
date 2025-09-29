@@ -65,11 +65,13 @@ export default function MovementDetail() {
 
   const loadLinkedReminders = async (movementId) => {
     try {
-      // TODO: Implementar getRemindersByMovement en el servicio
-      console.log('TODO: Cargar recordatorios vinculados para:', movementId);
-      setLinkedReminders([]);
+      const { ReminderService } = require('../modules/reminders');
+      const reminders = await ReminderService.getRemindersByMovement(movementId);
+      setLinkedReminders(reminders);
+      console.log('[MovementDetail] Recordatorios vinculados cargados:', reminders.length);
     } catch (error) {
-      console.error('Error cargando recordatorios vinculados:', error);
+      console.error('[MovementDetail] Error cargando recordatorios vinculados:', error);
+      setLinkedReminders([]);
     }
   };
 
