@@ -263,21 +263,6 @@ interface ExportMeta {
   rango?: string;
 }
 
-// Función para obtener color del estado
-const getEstadoBadgeStyle = (estado: string) => {
-  const estadoUpper = estado.toUpperCase();
-  switch (estadoUpper) {
-    case 'URGENTE':
-      return { bg: '#FDECEC', color: '#C0392B' };
-    case 'PENDIENTE':
-      return { bg: '#FFF6DE', color: '#B9770E' };
-    case 'PAGADO':
-      return { bg: '#EAF7EE', color: '#1E8449' };
-    default:
-      return { bg: '#F5F5F5', color: '#666' };
-  }
-};
-
 export const exportPDFStyled = async (
   movements: ExportableMovement[], 
   filename: string, 
@@ -309,13 +294,13 @@ export const exportPDFStyled = async (
       minute: '2-digit'
     });
 
-    // Generar HTML estilizado
+    // Generar HTML estilizado según la segunda captura (diseño violeta/azul)
     const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Ordénate • Reporte Financiero</title>
+      <title>Ordénate · Reporte Financiero</title>
       <style>
         * {
           margin: 0;
@@ -327,85 +312,117 @@ export const exportPDFStyled = async (
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
           line-height: 1.6;
           color: #2c3e50;
-          background: #f8f9fa;
-          padding: 20px;
+          background: #f6f7f9;
+          padding: 24px;
         }
         
+        /* Header con logo y título */
         .header {
           text-align: center;
-          margin-bottom: 30px;
-          padding: 20px;
-          background: linear-gradient(135deg, #2A7D76 0%, #1e5f5a 100%);
-          border-radius: 12px;
+          margin-bottom: 32px;
+          padding: 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 16px;
           color: white;
+          box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+        
+        .header .logo {
+          font-size: 32px;
+          margin-bottom: 8px;
         }
         
         .header h1 {
-          font-size: 28px;
-          font-weight: 700;
-          margin-bottom: 15px;
+          font-size: 32px;
+          font-weight: 800;
+          margin-bottom: 16px;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        .chips {
+        .header-info {
           display: flex;
           justify-content: center;
-          gap: 12px;
+          gap: 16px;
           flex-wrap: wrap;
+          font-size: 16px;
+          font-weight: 500;
+          opacity: 0.95;
         }
         
-        .chip {
+        .header-info span {
           background: rgba(255, 255, 255, 0.2);
-          padding: 6px 12px;
-          border-radius: 20px;
-          font-size: 14px;
-          font-weight: 500;
+          padding: 8px 16px;
+          border-radius: 24px;
           backdrop-filter: blur(10px);
         }
         
-        .cards {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-        
-        .card {
-          padding: 24px;
-          border-radius: 12px;
+        /* Bloque Resumen Ejecutivo con degradado violeta */
+        .executive-summary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 16px;
+          padding: 32px;
+          margin-bottom: 32px;
           color: white;
+          box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+        
+        .executive-summary h2 {
           text-align: center;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          font-size: 24px;
+          font-weight: 700;
+          margin-bottom: 24px;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        .card-cobros {
-          background: linear-gradient(135deg, #27AE60 0%, #229954 100%);
+        .summary-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 20px;
         }
         
-        .card-pagos {
-          background: linear-gradient(135deg, #E74C3C 0%, #C0392B 100%);
+        .summary-card {
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(15px);
+          border-radius: 12px;
+          padding: 24px;
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
-        .card-balance {
-          background: linear-gradient(135deg, ${balance >= 0 ? '#27AE60 0%, #229954' : '#E74C3C 0%, #C0392B'} 100%);
+        .summary-card .icon {
+          font-size: 28px;
+          margin-bottom: 12px;
+          display: block;
         }
         
-        .card h3 {
+        .summary-card h3 {
           font-size: 16px;
+          font-weight: 600;
           margin-bottom: 8px;
           opacity: 0.9;
-          font-weight: 500;
         }
         
-        .card .amount {
-          font-size: 28px;
-          font-weight: 700;
+        .summary-card .amount {
+          font-size: 32px;
+          font-weight: 800;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
+        .balance-positive {
+          color: #00e676 !important;
+        }
+        
+        .balance-negative {
+          color: #ff5252 !important;
+        }
+        
+        /* Tabla con cabecera azul degradado */
         .table-container {
           background: white;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          border-radius: 16px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
           overflow: hidden;
+          margin-bottom: 32px;
         }
         
         table {
@@ -414,139 +431,220 @@ export const exportPDFStyled = async (
         }
         
         th {
-          background: #f8f9fa;
-          padding: 16px 12px;
+          background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+          color: white;
+          padding: 20px 16px;
           text-align: left;
-          font-weight: 600;
-          font-size: 14px;
-          color: #2c3e50;
-          border-bottom: 2px solid #e9ecef;
+          font-weight: 700;
+          font-size: 16px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border: none;
         }
         
         td {
-          padding: 16px 12px;
+          padding: 18px 16px;
           border-bottom: 1px solid #f1f3f4;
-          font-size: 14px;
+          font-size: 15px;
+          vertical-align: middle;
         }
         
         tr:last-child td {
           border-bottom: none;
         }
         
-        tr:hover {
-          background-color: #f8f9fa;
+        tbody tr:nth-child(even) {
+          background-color: #f8fafc;
         }
         
+        tbody tr:hover {
+          background-color: #e1f5fe;
+          transition: background-color 0.2s ease;
+        }
+        
+        /* Estilos para tipos */
         .tipo-pill {
           display: inline-block;
-          padding: 4px 12px;
+          padding: 6px 14px;
           border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
+          font-size: 13px;
+          font-weight: 700;
           text-transform: uppercase;
         }
         
         .tipo-pago {
-          background: #FDEDEC;
-          color: #E74C3C;
+          background: #ffebee;
+          color: #c62828;
         }
         
         .tipo-cobro {
-          background: #EAF7EE;
-          color: #27AE60;
+          background: #e8f5e8;
+          color: #2e7d32;
         }
         
+        /* Estilos para montos */
         .monto-pago {
-          color: #E74C3C;
-          font-weight: 600;
+          color: #e74c3c;
+          font-weight: 700;
+          font-size: 16px;
         }
         
         .monto-cobro {
-          color: #27AE60;
-          font-weight: 600;
+          color: #27ae60;
+          font-weight: 700;
+          font-size: 16px;
         }
         
+        /* Badges de estado con colores específicos */
         .estado-badge {
           display: inline-block;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
           text-transform: uppercase;
         }
         
+        .estado-pendiente {
+          background: #fff3cd;
+          color: #856404;
+        }
+        
+        .estado-urgente {
+          background: #f8d7da;
+          color: #721c24;
+        }
+        
+        .estado-pagado {
+          background: #d4edda;
+          color: #155724;
+        }
+        
         .fecha-col {
-          font-weight: 500;
+          font-weight: 600;
           color: #495057;
         }
         
         .nota-col {
           color: #6c757d;
           font-style: italic;
+          max-width: 200px;
+          word-wrap: break-word;
         }
         
+        /* Footer */
         .footer {
-          margin-top: 30px;
           text-align: center;
-          font-size: 12px;
-          color: #6c757d;
+          padding: 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-radius: 16px;
+          font-size: 16px;
+          font-weight: 600;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .footer .app-name {
+          font-size: 18px;
+          font-weight: 800;
+          margin-bottom: 4px;
+        }
+        
+        .footer .tagline {
+          opacity: 0.9;
+          font-size: 14px;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+          body {
+            padding: 16px;
+          }
+          
+          .header h1 {
+            font-size: 28px;
+          }
+          
+          .summary-cards {
+            grid-template-columns: 1fr;
+          }
+          
+          .summary-card .amount {
+            font-size: 28px;
+          }
+          
+          th, td {
+            padding: 12px 8px;
+            font-size: 14px;
+          }
         }
       </style>
     </head>
     <body>
+      <!-- Header con logo y título -->
       <div class="header">
-        <h1>Ordénate • Reporte Financiero</h1>
-        <div class="chips">
-          <div class="chip">📅 ${meta?.fechaTitulo || fechaActual}</div>
-          <div class="chip">⏰ ${meta?.fechaHora || horaActual}</div>
-          ${meta?.rango ? `<div class="chip">🗂 ${meta.rango}</div>` : ''}
-          <div class="chip">🧾 ${movements.length} movimiento${movements.length !== 1 ? 's' : ''}</div>
+        <div class="logo">🏢</div>
+        <h1>Ordénate · Reporte Financiero</h1>
+        <div class="header-info">
+          <span>📅 ${meta?.fechaTitulo || fechaActual}</span>
+          <span>⏰ ${meta?.fechaHora || horaActual}</span>
+          <span>🧾 ${movements.length} movimiento${movements.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
       
-      <div class="cards">
-        <div class="card card-cobros">
-          <h3>Cobros Totales</h3>
-          <div class="amount">${formatMonto(totalCobros)}</div>
-        </div>
-        <div class="card card-pagos">
-          <h3>Pagos Totales</h3>
-          <div class="amount">${formatMonto(totalPagos)}</div>
-        </div>
-        <div class="card card-balance">
-          <h3>Balance Neto</h3>
-          <div class="amount">${balance >= 0 ? '+' : ''}${formatMonto(balance)}</div>
+      <!-- Bloque Resumen Ejecutivo con degradado violeta -->
+      <div class="executive-summary">
+        <h2>📈 Resumen Ejecutivo</h2>
+        <div class="summary-cards">
+          <div class="summary-card">
+            <span class="icon">💚</span>
+            <h3>Cobros Totales</h3>
+            <div class="amount">${formatMonto(totalCobros)}</div>
+          </div>
+          <div class="summary-card">
+            <span class="icon">🪙</span>
+            <h3>Pagos Totales</h3>
+            <div class="amount">${formatMonto(totalPagos)}</div>
+          </div>
+          <div class="summary-card">
+            <span class="icon">⚖️</span>
+            <h3>Balance Neto</h3>
+            <div class="amount ${balance >= 0 ? 'balance-positive' : 'balance-negative'}">
+              ${balance >= 0 ? '+' : ''}${formatMonto(Math.abs(balance))}
+            </div>
+          </div>
         </div>
       </div>
       
+      <!-- Tabla con cabecera azul degradado -->
       <div class="table-container">
         <table>
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Tipo</th>
-              <th>Monto</th>
-              <th>Estado</th>
-              <th>Nota</th>
+              <th>📅 Fecha</th>
+              <th>💰 Tipo</th>
+              <th>💵 Monto</th>
+              <th>📋 Estado</th>
+              <th>📝 Nota</th>
             </tr>
           </thead>
           <tbody>
             ${movements.map(movement => {
-              const estadoStyle = getEstadoBadgeStyle(movement.estado);
               const signo = movement.tipo === 'cobro' ? '+' : '-';
+              const estadoClass = `estado-${movement.estado.toLowerCase()}`;
               return `
                 <tr>
                   <td class="fecha-col">${sanitizeHTML(formatDate(movement.fechaISO))}</td>
                   <td>
                     <span class="tipo-pill tipo-${movement.tipo}">
-                      ${sanitizeHTML(movement.tipo)}
+                      ${movement.tipo === 'pago' ? 'Pago' : 'Cobro'}
                     </span>
                   </td>
                   <td class="monto-${movement.tipo}">
                     ${signo}${sanitizeHTML(formatMonto(movement.monto))}
                   </td>
                   <td>
-                    <span class="estado-badge" style="background-color: ${estadoStyle.bg}; color: ${estadoStyle.color};">
+                    <span class="estado-badge ${estadoClass}">
                       ${sanitizeHTML(movement.estado)}
                     </span>
                   </td>
@@ -558,8 +656,10 @@ export const exportPDFStyled = async (
         </table>
       </div>
       
+      <!-- Footer -->
       <div class="footer">
-        Generado por Ordénate el ${fechaActual} a las ${horaActual}
+        <div class="app-name">Generado por Ordénate App</div>
+        <div class="tagline">Tu asistente financiero personal</div>
       </div>
     </body>
     </html>
