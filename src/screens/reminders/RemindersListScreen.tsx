@@ -82,7 +82,18 @@ const RemindersListScreen = () => {
   };
 
   const handleEditReminder = (reminder: any) => {
-    (navigation as any).navigate('ReminderFormScreen', { reminderId: reminder.id });
+    const parent = (navigation as any).getParent();
+    if (parent) {
+      parent.navigate('ReminderForm', { 
+        mode: 'edit',
+        reminderId: reminder.id 
+      });
+    } else {
+      (navigation as any).navigate('ReminderForm', { 
+        mode: 'edit',
+        reminderId: reminder.id 
+      });
+    }
   };
 
   const handleDeleteReminder = (reminder: Reminder) => {
@@ -370,7 +381,22 @@ const RemindersListScreen = () => {
         </TouchableOpacity>
         <Text style={styles.title}>Recordatorios</Text>
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate('ReminderFormScreen')}
+          onPress={() => {
+            const parent = (navigation as any).getParent();
+            if (parent) {
+              parent.navigate('ReminderForm', {
+                mode: 'create',
+                type: 'general',
+                linkedMovementId: null
+              });
+            } else {
+              (navigation as any).navigate('ReminderForm', {
+                mode: 'create',
+                type: 'general',
+                linkedMovementId: null
+              });
+            }
+          }}
           style={styles.addButton}
         >
           <Ionicons name="add" size={24} color="white" />

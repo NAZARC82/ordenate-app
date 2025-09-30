@@ -1,103 +1,184 @@
-import React, { useMemo, useLayoutEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useMovimientos } from '../state/MovimientosContext';
-import { getDateString } from '../utils/date';
-import { getEstadoColor } from '../utils/estadoColor';
-import { exportarPDFSeleccion } from '../utils/pdfExport';
-import ActionSheet from '../components/ActionSheet';
+import React, { useMemo, useLayoutEffect, useState, useEffect } from 'react'
+import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity, Switch, ActivityIndicator, Platform, ActionSheetIOS, Modal } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRoute, useNavigation } from '@react-navigation/native'
+import { Ionicons } from '@expo/vector-icons'
+
+import { useMovimientos } from '../state/MovimientosContext'
+import { getDateString } from '../utils/date'
+import { getEstadoColor } from '../utils/estadoColor'
+import { exportarPDFSeleccion } from '../utils/pdfExport'
+import { exportCSV, exportPDF, exportPDFStyled } from '../utils/exporters'
+import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
+import ActionSheet from '../components/ActionSheet'
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
   const route = useRoute();
   const navigation = useNavigation();
   
-  // Obtener filtro inicial de route.params o usar el filtro legacy
+  // Estado para el tab activo
+  const [activeTab, setActiveTab] = useState('todos');
+  
+  // Obtener filtro inicial de route.params
   const initialFilter = route.params?.initialFilter;
   const legacyFilter = route.params?.filter ?? null;
-  
-  // Convertir initialFilter a formato de filtro
-  let currentFilter = legacyFilter;
-  if (initialFilter) {
-    if (initialFilter === 'pagos') {
-      currentFilter = { tipo: 'pago' };
-    } else if (initialFilter === 'cobros') {
-      currentFilter = { tipo: 'cobro' };
-    } else if (initialFilter === 'todos') {
-      currentFilter = null;
-    }
-  }
   
   // Estados para el modo de selección
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [exportResult, setExportResult] = useState(null);
 
+  // Manejar filtro inicial desde route.params
+  useEffect(() => {
+    if (initialFilter) {
+      if (initialFilter === 'pagos') {
+        setActiveTab('pagos');
+      } else if (initialFilter === 'cobros') {
+        setActiveTab('cobros');
+      } else if (initialFilter === 'todos') {
+        setActiveTab('todos');
+      }
+      
+      // Limpiar el param para evitar que se ejecute de nuevo
+      navigation.setParams({ initialFilter: undefined });
+    }
+  }, [initialFilter, navigation]);
+
   useLayoutEffect(() => {
-    // Título dinámico según el filtro
+    // Título dinámico según el activeTab
     let title = 'Historial';
-    if (currentFilter?.tipo === 'pago') {
+    if (activeTab === 'pagos') {
       title = 'Historial - Pagos';
-    } else if (currentFilter?.tipo === 'cobro') {
+    } else if (activeTab === 'cobros') {
       title = 'Historial - Cobros';
-    } else if (filter?.day) {
-      title = `Historial - ${filter.day}`;
-    } else if (filter?.estado) {
-      title = `Historial - ${filter.estado}`;
+    } else if (legacyFilter?.day) {
+      title = `Historial - ${legacyFilter.day}`;
+    } else if (legacyFilter?.estado) {
+      title = `Historial - ${legacyFilter.estado}`;
     }
     
     navigation.setOptions?.({
       title,
       headerBackTitle: 'Volver',
     });
-  }, [navigation, filter]);
+  }, [navigation, activeTab, legacyFilter]);
 
   // Global list ordered DESC by fechaISO, independent of calendar
   const filtered = useMemo(() => {
     let base = [...movimientos];
     
-    // Filtro por día
-    if (filter?.day) {
-      base = base.filter(m => getDateString(m.fechaISO) === filter.day);
+    // Filtro por día (legacy filter)
+    if (legacyFilter?.day) {
+      base = base.filter(m => getDateString(m.fechaISO) === legacyFilter.day);
     }
     
-    // Filtro por estado
-    if (filter?.estado) {
-      if (filter.estado === 'no-pagado') {
+    // Filtro por estado (legacy filter)
+    if (legacyFilter?.estado) {
+      if (legacyFilter.estado === 'no-pagado') {
         base = base.filter(m => m.estado !== 'pagado');
       } else {
-        base = base.filter(m => m.estado === filter.estado);
+        base = base.filter(m => m.estado === legacyFilter.estado);
       }
     }
     
-    // Filtro por tipo (pago/cobro)
-    if (currentFilter?.tipo) {
-      base = base.filter(m => m.tipo === currentFilter.tipo);
+    // Filtro por activeTab
+    if (activeTab === 'pagos') {
+      base = base.filter(m => m.tipo === 'pago');
+    } else if (activeTab === 'cobros') {
+      base = base.filter(m => m.tipo === 'cobro');
     }
+    // Si activeTab === 'todos', no filtramos por tipo
     
     return base;
-  }, [movimientos, filter]);
+  }, [movimientos, activeTab, legacyFilter]);
 
   const sortedMovimientos = useMemo(() => {
     return filtered.sort((a, b) => new Date(b.fechaISO) - new Date(a.fechaISO));
   }, [filtered]);
+
+  // Calcular parámetros para subtítulo
+  const subtitleParams = useMemo(() => {
+    // Detectar si hay filtro de día específico
+    const dayFilter = legacyFilter?.day;
+    let dateYMD, rangeStartYMD, rangeEndYMD;
+    
+    if (dayFilter) {
+      // Filtro por día específico
+      dateYMD = dayFilter;
+    } else if (sortedMovimientos.length > 1 && !isSingleDay(sortedMovimientos)) {
+      // Múltiples días - usar rango
+      const range = getMovementsDateRange(sortedMovimientos);
+      rangeStartYMD = range.startYMD;
+      rangeEndYMD = range.endYMD;
+    } else if (sortedMovimientos.length === 1) {
+      // Un solo movimiento - usar su fecha
+      dateYMD = formatDateForFilename(sortedMovimientos[0].fechaISO);
+    } else if (sortedMovimientos.length > 1 && isSingleDay(sortedMovimientos)) {
+      // Todos del mismo día
+      dateYMD = formatDateForFilename(sortedMovimientos[0].fechaISO);
+    }
+    
+    return {
+      activeTab,
+      dateYMD,
+      rangeStartYMD,
+      rangeEndYMD,
+      resultCount: sortedMovimientos.length,
+      selectedCount: selectedItems.size > 0 ? selectedItems.size : undefined
+    };
+  }, [activeTab, sortedMovimientos, legacyFilter, selectedItems]);
+
+  // Generar subtítulo
+  const subtitle = buildSubtitle(subtitleParams);
 
   const formatDate = (fechaISO) => {
     try {
       return new Date(fechaISO).toLocaleDateString('es-UY', {
         day: '2-digit',
         month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric'
       });
     } catch (error) {
+      console.warn('Error formateando fecha:', fechaISO, error);
       return 'Fecha inválida';
     }
+  };
+
+  // Componente EmptyState dinámico
+  const EmptyState = ({ activeTab }) => {
+    const getEmptyMessage = () => {
+      switch (activeTab) {
+        case 'pagos':
+          return {
+            title: 'Sin resultados',
+            subtitle: 'No hay pagos en este período.'
+          };
+        case 'cobros':
+          return {
+            title: 'Sin resultados',
+            subtitle: 'No hay cobros en este período.'
+          };
+        default:
+          return {
+            title: 'Sin resultados',
+            subtitle: 'No hay movimientos aún.'
+          };
+      }
+    };
+
+    const { title, subtitle } = getEmptyMessage();
+
+    return (
+      <View style={styles.emptyStateContainer}>
+        <Ionicons name="folder-open-outline" size={64} color="#ccc" />
+        <Text style={styles.emptyStateTitle}>{title}</Text>
+        <Text style={styles.emptyStateSubtitle}>{subtitle}</Text>
+      </View>
+    );
   };
 
   const handleEditar = (item) => {
@@ -148,16 +229,32 @@ export default function PantallaHistorial() {
 
   // Crear recordatorio desde movimiento
   const handleCrearRecordatorio = (item) => {
-    navigation.navigate('ReminderForm', {
-      linkedMovementId: item.id,
-      initialType: item.tipo === 'pago' ? 'pago' : 'cobro',
-      movementData: {
-        tipo: item.tipo,
-        monto: item.monto,
-        nota: item.nota,
-        fechaISO: item.fechaISO
-      }
-    });
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate('ReminderForm', {
+        mode: 'create',
+        linkedMovementId: item.id,
+        type: item.tipo === 'pago' ? 'pago' : 'cobro',
+        movementData: {
+          tipo: item.tipo,
+          monto: item.monto,
+          nota: item.nota,
+          fechaISO: item.fechaISO
+        }
+      });
+    } else {
+      navigation.navigate('ReminderForm', {
+        mode: 'create',
+        linkedMovementId: item.id,
+        type: item.tipo === 'pago' ? 'pago' : 'cobro',
+        movementData: {
+          tipo: item.tipo,
+          monto: item.monto,
+          nota: item.nota,
+          fechaISO: item.fechaISO
+        }
+      });
+    }
   };
 
   // Manejar cierre del ActionSheet
@@ -211,7 +308,243 @@ export default function PantallaHistorial() {
     }
   };
 
+  // Exportar PDF usando nueva función
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+
+      // Determinar qué exportar: seleccionados o todos los visibles
+      const itemsToExport = selectedItems.size > 0 
+        ? sortedMovimientos.filter(mov => selectedItems.has(mov.id))
+        : sortedMovimientos;
+
+      if (itemsToExport.length === 0) {
+        Alert.alert('Sin datos', 'No hay movimientos para exportar.');
+        return;
+      }
+
+      // Construir nombre de archivo contextual
+      const selectedCount = selectedItems.size > 0 ? selectedItems.size : undefined;
+      
+      // Detectar si hay filtro de día específico
+      const dayFilter = legacyFilter?.day;
+      let dateYMD, rangeStartYMD, rangeEndYMD;
+      
+      if (dayFilter) {
+        // Filtro por día específico
+        dateYMD = dayFilter;
+      } else if (itemsToExport.length > 1 && !isSingleDay(itemsToExport)) {
+        // Múltiples días - usar rango
+        const range = getMovementsDateRange(itemsToExport);
+        rangeStartYMD = range.startYMD;
+        rangeEndYMD = range.endYMD;
+      } else if (itemsToExport.length === 1) {
+        // Un solo movimiento - usar su fecha
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+      } else if (isSingleDay(itemsToExport)) {
+        // Todos del mismo día
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+      }
+      
+      const filename = buildExportName({
+        activeTab,
+        dateYMD,
+        rangeStartYMD,
+        rangeEndYMD,
+        selectedCount,
+        ext: 'pdf'
+      });
+      
+      await exportPDF(itemsToExport, filename);
+      
+      // Limpiar selección si había
+      if (selectedItems.size > 0) {
+        setSelectedItems(new Set());
+      }
+      
+    } catch (error) {
+      console.error('Error exportando PDF:', error);
+      Alert.alert('Error', 'No se pudo exportar el archivo PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Exportar CSV usando nueva función
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true);
+
+      // Determinar qué exportar: seleccionados o todos los visibles
+      const itemsToExport = selectedItems.size > 0 
+        ? sortedMovimientos.filter(mov => selectedItems.has(mov.id))
+        : sortedMovimientos;
+
+      if (itemsToExport.length === 0) {
+        Alert.alert('Sin datos', 'No hay movimientos para exportar.');
+        return;
+      }
+
+      // Construir nombre de archivo contextual
+      const selectedCount = selectedItems.size > 0 ? selectedItems.size : undefined;
+      
+      // Detectar si hay filtro de día específico
+      const dayFilter = legacyFilter?.day;
+      let dateYMD, rangeStartYMD, rangeEndYMD;
+      
+      if (dayFilter) {
+        // Filtro por día específico
+        dateYMD = dayFilter;
+      } else if (itemsToExport.length > 1 && !isSingleDay(itemsToExport)) {
+        // Múltiples días - usar rango
+        const range = getMovementsDateRange(itemsToExport);
+        rangeStartYMD = range.startYMD;
+        rangeEndYMD = range.endYMD;
+      } else if (itemsToExport.length === 1) {
+        // Un solo movimiento - usar su fecha
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+      } else if (isSingleDay(itemsToExport)) {
+        // Todos del mismo día
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+      }
+      
+      const filename = buildExportName({
+        activeTab,
+        dateYMD,
+        rangeStartYMD,
+        rangeEndYMD,
+        selectedCount,
+        ext: 'csv'
+      });
+      
+      await exportCSV(itemsToExport, filename);
+      
+      // Limpiar selección si había
+      if (selectedItems.size > 0) {
+        setSelectedItems(new Set());
+      }
+      
+    } catch (error) {
+      console.error('Error exportando CSV:', error);
+      Alert.alert('Error', 'No se pudo exportar el archivo CSV');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Función para abrir opciones de exportación
+  const openExportOptions = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['PDF', 'CSV', 'Cancelar'],
+          cancelButtonIndex: 2,
+          title: 'Seleccionar formato de exportación'
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            onExport('pdf');
+          } else if (buttonIndex === 1) {
+            onExport('csv');
+          }
+        }
+      );
+    } else {
+      // Android: usar modal
+      setShowExportModal(true);
+    }
+  };
+
+  // Función unificada de exportación
+  const onExport = async (kind) => {
+    try {
+      setIsExporting(true);
+      setShowExportModal(false); // Cerrar modal de Android si está abierto
+
+      // Determinar qué exportar: seleccionados o todos los visibles
+      const itemsToExport = selectedItems.size > 0 
+        ? sortedMovimientos.filter(mov => selectedItems.has(mov.id))
+        : sortedMovimientos;
+
+      if (itemsToExport.length === 0) {
+        Alert.alert('Sin datos', 'No hay movimientos para exportar.');
+        return;
+      }
+
+      // Construir nombre de archivo contextual y metadatos
+      const selectedCount = selectedItems.size > 0 ? selectedItems.size : undefined;
+      
+      // Detectar si hay filtro de día específico
+      const dayFilter = legacyFilter?.day;
+      let dateYMD, rangeStartYMD, rangeEndYMD;
+      let fechaTitulo, rango;
+      
+      if (dayFilter) {
+        // Filtro por día específico
+        dateYMD = dayFilter;
+        fechaTitulo = fmtYMD(dayFilter);
+      } else if (itemsToExport.length > 1 && !isSingleDay(itemsToExport)) {
+        // Múltiples días - usar rango
+        const range = getMovementsDateRange(itemsToExport);
+        rangeStartYMD = range.startYMD;
+        rangeEndYMD = range.endYMD;
+        rango = `${fmtYMD(range.startYMD)} a ${fmtYMD(range.endYMD)}`;
+      } else if (itemsToExport.length === 1) {
+        // Un solo movimiento - usar su fecha
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+        fechaTitulo = fmtYMD(dateYMD);
+      } else if (isSingleDay(itemsToExport)) {
+        // Todos del mismo día
+        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
+        fechaTitulo = fmtYMD(dateYMD);
+      }
+      
+      const filename = buildExportName({
+        activeTab,
+        dateYMD,
+        rangeStartYMD,
+        rangeEndYMD,
+        selectedCount,
+        ext: kind
+      });
+      
+      // Preparar metadatos para PDF estilizado
+      const meta = {
+        fechaTitulo,
+        fechaHora: new Date().toLocaleTimeString('es-UY', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        rango
+      };
+      
+      // Exportar según el tipo
+      if (kind === 'pdf') {
+        await exportPDFStyled(itemsToExport, filename, meta);
+      } else if (kind === 'csv') {
+        await exportCSV(itemsToExport, filename);
+      }
+      
+      // Limpiar selección si había
+      if (selectedItems.size > 0) {
+        setSelectedItems(new Set());
+      }
+      
+    } catch (error) {
+      console.error(`Error exportando ${kind}:`, error);
+      Alert.alert('Error al exportar', `No se pudo exportar el archivo ${kind.toUpperCase()}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const renderMovementItem = ({ item }) => {
+    // Validación defensiva
+    if (!item || !item.id) {
+      console.warn('Item inválido en renderMovementItem:', item);
+      return null;
+    }
+    
     const isSelected = selectedItems.has(item.id);
     
     return (
@@ -249,10 +582,10 @@ export default function PantallaHistorial() {
                 styles.movementMonto,
                 { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
               ]}>
-                {item.tipo === 'pago' ? '-' : '+'}${item.monto}
+                {item.tipo === 'pago' ? '-' : '+'}${typeof item.monto === 'number' ? item.monto.toLocaleString('es-UY') : (item.monto || '0')}
               </Text>
-              <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado) }]}>
-                <Text style={styles.estadoText}>{item.estado}</Text>
+              <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado || 'pendiente') }]}>
+                <Text style={styles.estadoText}>{item.estado || 'pendiente'}</Text>
               </View>
             </View>
           </View>
@@ -292,13 +625,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              !currentFilter?.tipo && styles.filterButtonActive
+              activeTab === 'todos' && styles.filterButtonActive
             ]}
-            onPress={() => navigation.navigate('Historial')}
+            onPress={() => setActiveTab('todos')}
           >
             <Text style={[
               styles.filterButtonText,
-              !currentFilter?.tipo && styles.filterButtonTextActive
+              activeTab === 'todos' && styles.filterButtonTextActive
             ]}>
               Todos
             </Text>
@@ -307,13 +640,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              currentFilter?.tipo === 'pago' && styles.filterButtonActive
+              activeTab === 'pagos' && styles.filterButtonActive
             ]}
-            onPress={() => navigation.navigate('Historial', { filter: { tipo: 'pago' } })}
+            onPress={() => setActiveTab('pagos')}
           >
             <Text style={[
               styles.filterButtonText,
-              currentFilter?.tipo === 'pago' && styles.filterButtonTextActive
+              activeTab === 'pagos' && styles.filterButtonTextActive
             ]}>
               Pagos
             </Text>
@@ -322,13 +655,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              currentFilter?.tipo === 'cobro' && styles.filterButtonActive
+              activeTab === 'cobros' && styles.filterButtonActive
             ]}
-            onPress={() => navigation.navigate('Historial', { filter: { tipo: 'cobro' } })}
+            onPress={() => setActiveTab('cobros')}
           >
             <Text style={[
               styles.filterButtonText,
-              currentFilter?.tipo === 'cobro' && styles.filterButtonTextActive
+              activeTab === 'cobros' && styles.filterButtonTextActive
             ]}>
               Cobros
             </Text>
@@ -338,7 +671,14 @@ export default function PantallaHistorial() {
         {/* Botón para crear recordatorio general */}
         <TouchableOpacity 
           style={styles.generalReminderButton}
-          onPress={() => navigation.navigate('ReminderForm', { initialType: 'general' })}
+          onPress={() => {
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('ReminderForm', { mode: 'create', type: 'general', linkedMovementId: null });
+            } else {
+              navigation.navigate('ReminderForm', { mode: 'create', type: 'general', linkedMovementId: null });
+            }
+          }}
         >
           <Ionicons name="notifications-outline" size={20} color="#3498DB" />
           <Text style={styles.generalReminderText}>Nuevo Recordatorio</Text>
@@ -358,52 +698,100 @@ export default function PantallaHistorial() {
         )}
       </View>
       
-      {sortedMovimientos.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No hay movimientos registrados</Text>
-          <Text style={styles.emptySubtext}>
-            Los movimientos aparecerán aquí ordenados por fecha más reciente
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.listContainer}>
-          <Text style={styles.subtitle}>
-            {sortedMovimientos.length} movimiento{sortedMovimientos.length !== 1 ? 's' : ''} 
-            {filter ? ' (filtrados)' : ''}
-            {selectionMode && selectedItems.size > 0 && (
-              <Text style={styles.selectionCount}> • {selectedItems.size} seleccionado{selectedItems.size !== 1 ? 's' : ''}</Text>
-            )}
-          </Text>
-          <FlatList
-            data={sortedMovimientos}
-            keyExtractor={item => String(item.id ?? item._id ?? `${item.tipo}-${item.fechaISO}`)}
-            renderItem={renderMovementItem}
-            showsVerticalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            contentContainerStyle={[
-              styles.listContent,
-              selectionMode && selectedItems.size > 0 && { paddingBottom: 100 }
-            ]}
-          />
-        </View>
-      )}
+      {/* Subtítulo de contexto */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 }}>
+        <Text style={{ color: '#6B5A4B', fontSize: 14 }}>{subtitle}</Text>
+      </View>
+      
+      {/* FlatList robusto con EmptyState */}
+      <View style={styles.listWrapper}>
+        <FlatList
+          data={sortedMovimientos}
+          keyExtractor={(item) => `mov-${item.id ?? item._id ?? `${item.tipo}-${item.fechaISO}`}`}
+          renderItem={renderMovementItem}
+          ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+          ListEmptyComponent={<EmptyState activeTab={activeTab} />}
+          contentContainerStyle={[
+            styles.flatListContent,
+            {
+              paddingHorizontal: 16,
+              paddingBottom: 24,
+              flexGrow: sortedMovimientos.length === 0 ? 1 : 0,
+            },
+            selectionMode && selectedItems.size > 0 && { paddingBottom: 100 }
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={() => (
+            sortedMovimientos.length > 0 ? (
+              <View style={styles.listHeader}>
+                <Text style={styles.subtitle}>
+                  {sortedMovimientos.length} movimiento{sortedMovimientos.length !== 1 ? 's' : ''} 
+                  {(activeTab !== 'todos' || legacyFilter) ? ' (filtrados)' : ''}
+                  {selectionMode && selectedItems.size > 0 && (
+                    <Text style={styles.selectionCount}> • {selectedItems.size} seleccionado{selectedItems.size !== 1 ? 's' : ''}</Text>
+                  )}
+                </Text>
+              </View>
+            ) : null
+          )}
+        />
+      </View>
 
-      {/* Botón flotante para exportar seleccionados */}
-      {selectionMode && selectedItems.size > 0 && (
-        <View style={styles.fabContainer}>
+      {/* ActionsBar para exportación cuando está en modo selección */}
+      {selectionMode && (
+        <View style={styles.actionsBar}>
           <TouchableOpacity 
-            style={[styles.fab, isExporting && styles.fabDisabled]}
-            onPress={handleExportarSeleccionados}
+            style={[styles.actionButton, styles.exportButton, isExporting && styles.actionButtonDisabled]}
+            onPress={openExportOptions}
+            disabled={isExporting}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="share" size={20} color="white" />
+            <Text style={styles.actionButtonText}>
+              Exportar
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.pdfButton, isExporting && styles.actionButtonDisabled]}
+            onPress={() => onExport('pdf')}
             disabled={isExporting}
             activeOpacity={0.8}
           >
             {isExporting ? (
               <ActivityIndicator color="white" size="small" />
             ) : (
-              <Ionicons name="download" size={24} color="white" />
+              <Ionicons name="document-text" size={20} color="white" />
             )}
-            <Text style={styles.fabText}>
-              {isExporting ? 'Exportando...' : `Exportar ${selectedItems.size}`}
+            <Text style={styles.actionButtonText}>
+              PDF
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.csvButton, isExporting && styles.actionButtonDisabled]}
+            onPress={() => onExport('csv')}
+            disabled={isExporting}
+            activeOpacity={0.8}
+          >
+            {isExporting ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Ionicons name="grid" size={20} color="white" />
+            )}
+            <Text style={styles.actionButtonText}>
+              CSV
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.cancelButton]}
+            onPress={() => setSelectionMode(false)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close" size={20} color="#666" />
+            <Text style={[styles.actionButtonText, { color: '#666' }]}>
+              Cancelar
             </Text>
           </TouchableOpacity>
         </View>
@@ -417,6 +805,48 @@ export default function PantallaHistorial() {
         fileName={exportResult?.fileName}
         mimeType={exportResult?.mimeType}
       />
+
+      {/* Modal de exportación para Android */}
+      {Platform.OS === 'android' && (
+        <Modal
+          visible={showExportModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowExportModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Seleccionar formato de exportación</Text>
+              
+              <TouchableOpacity 
+                style={styles.modalButton}
+                onPress={() => onExport('pdf')}
+                disabled={isExporting}
+              >
+                <Ionicons name="document-text" size={24} color="#3E7D75" />
+                <Text style={styles.modalButtonText}>PDF</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.modalButton}
+                onPress={() => onExport('csv')}
+                disabled={isExporting}
+              >
+                <Ionicons name="grid" size={24} color="#3E7D75" />
+                <Text style={styles.modalButtonText}>CSV</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={() => setShowExportModal(false)}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+                <Text style={[styles.modalButtonText, { color: '#666' }]}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -438,6 +868,9 @@ const styles = StyleSheet.create({
     padding: 4,
     marginTop: 12,
     gap: 4,
+    zIndex: 10,
+    elevation: 2,
+    pointerEvents: 'auto',
   },
   filterButton: {
     flex: 1,
@@ -588,9 +1021,7 @@ const styles = StyleSheet.create({
     color: '#444',
     lineHeight: 18,
   },
-  separator: {
-    height: 12,
-  },
+  // Eliminado - ya no se usa separator individual
   actionsRow: {
     marginTop: 10,
     flexDirection: 'row',
@@ -601,37 +1032,99 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3E7D75',
   },
-  // Estilos para FAB (Floating Action Button)
-  fabContainer: {
+  // Estilos para ActionsBar
+  actionsBar: {
     position: 'absolute',
-    bottom: 30,
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-  },
-  fab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3E7D75',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
+    paddingBottom: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    flexDirection: 'row',
+    gap: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: -2,
     },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 8,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     gap: 8,
   },
-  fabDisabled: {
+  pdfButton: {
+    backgroundColor: '#e74c3c',
+  },
+  csvButton: {
+    backgroundColor: '#27ae60',
+  },
+  exportButton: {
+    backgroundColor: '#3E7D75',
+  },
+  cancelButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  actionButtonDisabled: {
     backgroundColor: '#bdc3c7',
   },
-  fabText: {
+  actionButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // Estilos para modal de Android
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginVertical: 4,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    gap: 12,
+  },
+  modalCancelButton: {
+    marginTop: 10,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#3E7D75',
   },
 }); 

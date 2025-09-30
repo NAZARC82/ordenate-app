@@ -88,16 +88,32 @@ export default function MovementDetail() {
     const movementId = existingMovimiento?.id;
     const reminderType = tipo; // 'pago' o 'cobro'
     
-    navigation.navigate('ReminderFormScreen', {
-      linkedMovementId: movementId,
-      initialType: reminderType,
-      movementData: {
-        tipo,
-        monto: Number(monto) || 0,
-        nota: nota.trim() || undefined,
-        fechaISO: fecha
-      }
-    });
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate('ReminderForm', {
+        mode: 'create',
+        linkedMovementId: movementId,
+        type: reminderType,
+        movementData: {
+          tipo,
+          monto: Number(monto) || 0,
+          nota: nota.trim() || undefined,
+          fechaISO
+        }
+      });
+    } else {
+      navigation.navigate('ReminderForm', {
+        mode: 'create',
+        linkedMovementId: movementId,
+        type: reminderType,
+        movementData: {
+          tipo,
+          monto: Number(monto) || 0,
+          nota: nota.trim() || undefined,
+          fechaISO
+        }
+      });
+    }
   };
 
   const handleSave = () => {

@@ -1,11 +1,12 @@
-import React, { useContext, useMemo, useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import { MovimientosContext } from "../state/MovimientosContext";
-import { fmtCurrency } from "../utils/fmt";
-import { ReminderService } from "../modules/reminders";
+import React, { useContext, useMemo, useState, useEffect } from 'react'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect } from '@react-navigation/native'
+
+import { MovimientosContext } from '../state/MovimientosContext'
+import { fmtCurrency } from '../utils/fmt'
+import { ReminderService } from '../modules/reminders'
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -99,7 +100,23 @@ export default function HomeScreen({ navigation }) {
 
       <BigBtn label="Agregar pago"  color="#DCE8FB" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "pago" })}/>
       <BigBtn label="Agregar cobro" color="#E7F7E9" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "cobro" })}/>
-      <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => navigation.navigate("ReminderFormScreen")}/>
+      <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => {
+        // Navegar al parent (RootStack) para acceder al modal ReminderForm
+        const parent = navigation.getParent();
+        if (parent) {
+          parent.navigate('ReminderForm', { 
+            mode: 'create', 
+            type: 'general', 
+            linkedMovementId: null 
+          });
+        } else {
+          navigation.navigate('ReminderForm', { 
+            mode: 'create', 
+            type: 'general', 
+            linkedMovementId: null 
+          });
+        }
+      }}/>
     </View>
   );
 }

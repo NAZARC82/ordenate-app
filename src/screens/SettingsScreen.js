@@ -1,13 +1,17 @@
-import React, { useContext, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Switch } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { MovimientosContext } from "../state/MovimientosContext";
-import { exportarPDFSeleccion } from "../utils/pdfExport";
-import ExportOptionsModal from "../components/ExportOptionsModal";
-import { getReminderSettings, saveReminderSettings, cleanupOldReminders } from "../modules/reminders";
+import React, { useContext, useState, useEffect } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+
+import { useNavigation } from '@react-navigation/native'
+
+import { MovimientosContext } from '../state/MovimientosContext'
+import { exportarPDFSeleccion } from '../utils/pdfExport'
+import ExportOptionsModal from '../components/ExportOptionsModal'
+import { getReminderSettings, saveReminderSettings, cleanupOldReminders } from '../modules/reminders'
 
 export default function SettingsScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { movimientos } = useContext(MovimientosContext);
   const [isExporting, setIsExporting] = useState(false);
@@ -99,39 +103,38 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📊 Reportes</Text>
         
+        {/* Redirigir a Historial para exportación */}
         <TouchableOpacity 
-          style={[styles.optionButton, isExporting && styles.optionButtonDisabled]} 
-          onPress={handleOpenModal}
-          disabled={isExporting}
+          style={styles.optionButton} 
+          onPress={() => {
+            // Navegar al Historial activando modo selección
+            navigation.navigate('Historial', { activateSelection: true });
+          }}
           activeOpacity={0.7}
         >
           <View style={styles.optionContent}>
             <View style={styles.optionLeft}>
               <View style={styles.iconContainer}>
                 <Ionicons 
-                  name="document-text" 
+                  name="download" 
                   size={24} 
                   color="#3E7D75" 
                 />
               </View>
               <View style={styles.optionText}>
-                <Text style={styles.optionTitle}>Exportar PDF</Text>
+                <Text style={styles.optionTitle}>Exportar Movimientos</Text>
                 <Text style={styles.optionDescription}>
-                  Filtros personalizados y columnas
+                  PDF estilizado y CSV desde Historial
                 </Text>
               </View>
             </View>
             
             <View style={styles.optionRight}>
-              {isExporting ? (
-                <ActivityIndicator size="small" color="#3E7D75" />
-              ) : (
-                <Ionicons 
-                  name="chevron-forward" 
-                  size={20} 
-                  color="#666" 
-                />
-              )}
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color="#666" 
+              />
             </View>
           </View>
         </TouchableOpacity>

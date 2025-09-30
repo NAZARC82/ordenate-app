@@ -50,7 +50,7 @@ const ReminderFormScreen = () => {
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
   const [formType, setFormType] = useState(type);
-  const [datetime, setDatetime] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000)); // +2 horas por defecto
+  const [when, setWhen] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000)); // +2 horas por defecto
   const [repeat, setRepeat] = useState('nunca');
   const [selectedAdvances, setSelectedAdvances] = useState([60]); // 1 hora por defecto
   const [notes, setNotes] = useState('');
@@ -59,7 +59,6 @@ const ReminderFormScreen = () => {
   // Estados de UI
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [datePickerMode, setDatePickerMode] = useState('date');
 
   // Opciones disponibles
   const advanceOptions = [
@@ -107,10 +106,25 @@ const ReminderFormScreen = () => {
       // Llenar el formulario con los datos del recordatorio
       setTitle(reminder.title);
       setFormType(reminder.type);
-      setDatetime(new Date(reminder.datetimeISO));
+      
+      // Intentar cargar desde timestamp local si existe en las notas
+      let loadedDate = new Date(reminder.datetimeISO);
+      let cleanNotes = reminder.notes || '';
+      
+      // Buscar timestamp local en las notas
+      const localTimestampMatch = cleanNotes.match(/\[Local: (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) \| TS: (\d+)\]/);
+      if (localTimestampMatch) {
+        const [, dateYMD, timeHM, tsLocal] = localTimestampMatch;
+        // Usar el timestamp local para reconstruir la fecha exacta
+        loadedDate = new Date(parseInt(tsLocal));
+        // Limpiar las notas removiendo la información de timestamp
+        cleanNotes = cleanNotes.replace(/\n\n\[Local:.*?\]$/, '').trim();
+      }
+      
+      setWhen(loadedDate);
       setSelectedAdvances(reminder.advance);
       setRepeat(reminder.repeat);
-      setNotes(reminder.notes || '');
+      setNotes(cleanNotes);
       setLinkedMovementId(reminder.linkedMovementId);
       
       console.log('[ReminderForm] Recordatorio cargado para editar:', reminder.id);
@@ -158,33 +172,58 @@ const ReminderFormScreen = () => {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-      setShowTimePicker(false);
-    }
-
+  const onChangeDate = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    
     if (selectedDate) {
-      if (datePickerMode === 'date') {
-        // Actualizar solo la fecha, mantener la hora
-        const newDate = new Date(datetime);
-        newDate.setFullYear(selectedDate.getFullYear());
-        newDate.setMonth(selectedDate.getMonth());
-        newDate.setDate(selectedDate.getDate());
-        setDatetime(newDate);
-        
-        if (Platform.OS === 'android') {
-          // En Android, mostrar picker de tiempo después del de fecha
-          setDatePickerMode('time');
-          setShowTimePicker(true);
-        }
-      } else {
-        // Actualizar solo la hora, mantener la fecha
-        const newDate = new Date(datetime);
-        newDate.setHours(selectedDate.getHours());
-        newDate.setMinutes(selectedDate.getMinutes());
-        setDatetime(newDate);
-      }
+      // Preservar la hora actual, actualizar solo la fecha
+      const newWhen = new Date(when);
+      newWhen.setFullYear(selectedDate.getFullYear());
+      newWhen.setMonth(selectedDate.getMonth());
+      newWhen.setDate(selectedDate.getDate());
+      setWhen(newWhen);
+      
+      // Validar si la nueva fecha/hora está en el pasado
+      validateFutureTime(newWhen);
+    }
+  };
+
+  const onChangeTime = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(Platform.OS === 'ios');
+    
+    if (selectedTime) {
+      // Preservar la fecha actual, actualizar solo la hora
+      const newWhen = new Date(when);
+      newWhen.setHours(selectedTime.getHours());
+      newWhen.setMinutes(selectedTime.getMinutes());
+      newWhen.setSeconds(0);
+      newWhen.setMilliseconds(0);
+      setWhen(newWhen);
+      
+      // Validar si la nueva fecha/hora está en el pasado
+      validateFutureTime(newWhen);
+    }
+  };
+
+  const validateFutureTime = (dateTime: Date) => {
+    const now = new Date();
+    if (dateTime <= now) {
+      // Si es hoy y ya pasó la hora, sugerir próxima hora
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0); // 9:00 AM del día siguiente
+      
+      Alert.alert(
+        'Hora en el pasado',
+        'La hora seleccionada ya pasó. ¿Quieres programarlo para mañana a las 9:00?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Sí, mañana 9:00',
+            onPress: () => setWhen(tomorrow)
+          }
+        ]
+      );
     }
   };
 
@@ -203,7 +242,7 @@ const ReminderFormScreen = () => {
       return 'El título es obligatorio';
     }
 
-    if (datetime <= new Date()) {
+    if (when <= new Date()) {
       return 'La fecha y hora debe ser en el futuro';
     }
 
@@ -223,14 +262,22 @@ const ReminderFormScreen = () => {
 
     setLoading(true);
     try {
+      // Crear timestamp local para evitar problemas de UTC/ISO
+      const localTimestamp = createLocalTimestamp(when);
+      
+      // Incluir información de timestamp local en las notas para referencia
+      const notesWithTimestamp = notes.trim() 
+        ? `${notes.trim()}\n\n[Local: ${localTimestamp.dateYMD} ${localTimestamp.timeHM} | TS: ${localTimestamp.tsLocal}]`
+        : `[Local: ${localTimestamp.dateYMD} ${localTimestamp.timeHM} | TS: ${localTimestamp.tsLocal}]`;
+
       const reminderDraft: ReminderDraft = {
         title: title.trim(),
         linkedMovementId,
         type: formType,
-        datetimeISO: datetime.toISOString(),
+        datetimeISO: when.toISOString(), // Mantenemos ISO para compatibilidad
         advance: selectedAdvances,
         repeat: repeat as RepeatFrequency,
-        notes: notes.trim() || undefined
+        notes: notesWithTimestamp
       };
 
       if (params.reminderId) {
@@ -275,15 +322,36 @@ const ReminderFormScreen = () => {
     }
   };
 
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleString('es-ES', {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('es-UY', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('es-UY', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
+  // Funciones auxiliares para persistencia local sin UTC
+  const createLocalTimestamp = (date: Date) => {
+    return {
+      dateYMD: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      timeHM: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+      tsLocal: date.getTime()
+    };
+  };
+
+  const parseLocalTimestamp = (dateYMD: string, timeHM: string) => {
+    const [year, month, day] = dateYMD.split('-').map(Number);
+    const [hour, minute] = timeHM.split(':').map(Number);
+    return new Date(year, month - 1, day, hour, minute, 0, 0);
   };
 
   return (
@@ -393,18 +461,28 @@ const ReminderFormScreen = () => {
           />
         </View>
 
-        {/* Fecha y hora */}
+        {/* Fecha */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fecha y hora</Text>
+          <Text style={styles.sectionTitle}>Fecha</Text>
           <TouchableOpacity 
             style={styles.dateTimeButton}
-            onPress={() => {
-              setDatePickerMode('date');
-              setShowDatePicker(true);
-            }}
+            onPress={() => setShowDatePicker(true)}
           >
             <Ionicons name="calendar" size={20} color="#3498db" />
-            <Text style={styles.dateTimeText}>{formatDateTime(datetime)}</Text>
+            <Text style={styles.dateTimeText}>{formatDate(when)}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hora */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hora</Text>
+          <TouchableOpacity 
+            style={styles.dateTimeButton}
+            onPress={() => setShowTimePicker(true)}
+          >
+            <Ionicons name="time" size={20} color="#3498db" />
+            <Text style={styles.dateTimeText}>{formatTime(when)}</Text>
             <Ionicons name="chevron-forward" size={20} color="#999" />
           </TouchableOpacity>
         </View>
@@ -469,20 +547,20 @@ const ReminderFormScreen = () => {
       {/* Date/Time Pickers */}
       {showDatePicker && (
         <DateTimePicker
-          value={datetime}
+          value={when}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
+          onChange={onChangeDate}
           minimumDate={new Date()}
         />
       )}
 
       {showTimePicker && (
         <DateTimePicker
-          value={datetime}
+          value={when}
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
+          onChange={onChangeTime}
           is24Hour={true}
         />
       )}
