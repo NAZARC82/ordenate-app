@@ -49,7 +49,7 @@ export default function HomeStack() {
         }}
       />
       <Stack.Screen
-        name="ReminderFormScreen"
+        name="ReminderForm"
         component={ReminderFormScreen}
         options={{
           headerShown: false,

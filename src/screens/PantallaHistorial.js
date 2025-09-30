@@ -13,7 +13,22 @@ export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
   const route = useRoute();
   const navigation = useNavigation();
-  const filter = route.params?.filter ?? null;
+  
+  // Obtener filtro inicial de route.params o usar el filtro legacy
+  const initialFilter = route.params?.initialFilter;
+  const legacyFilter = route.params?.filter ?? null;
+  
+  // Convertir initialFilter a formato de filtro
+  let currentFilter = legacyFilter;
+  if (initialFilter) {
+    if (initialFilter === 'pagos') {
+      currentFilter = { tipo: 'pago' };
+    } else if (initialFilter === 'cobros') {
+      currentFilter = { tipo: 'cobro' };
+    } else if (initialFilter === 'todos') {
+      currentFilter = null;
+    }
+  }
   
   // Estados para el modo de selección
   const [selectionMode, setSelectionMode] = useState(false);
@@ -25,9 +40,9 @@ export default function PantallaHistorial() {
   useLayoutEffect(() => {
     // Título dinámico según el filtro
     let title = 'Historial';
-    if (filter?.tipo === 'pago') {
+    if (currentFilter?.tipo === 'pago') {
       title = 'Historial - Pagos';
-    } else if (filter?.tipo === 'cobro') {
+    } else if (currentFilter?.tipo === 'cobro') {
       title = 'Historial - Cobros';
     } else if (filter?.day) {
       title = `Historial - ${filter.day}`;
@@ -60,8 +75,8 @@ export default function PantallaHistorial() {
     }
     
     // Filtro por tipo (pago/cobro)
-    if (filter?.tipo) {
-      base = base.filter(m => m.tipo === filter.tipo);
+    if (currentFilter?.tipo) {
+      base = base.filter(m => m.tipo === currentFilter.tipo);
     }
     
     return base;
@@ -133,7 +148,7 @@ export default function PantallaHistorial() {
 
   // Crear recordatorio desde movimiento
   const handleCrearRecordatorio = (item) => {
-    navigation.navigate('ReminderFormScreen', {
+    navigation.navigate('ReminderForm', {
       linkedMovementId: item.id,
       initialType: item.tipo === 'pago' ? 'pago' : 'cobro',
       movementData: {
@@ -277,13 +292,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              !filter?.tipo && styles.filterButtonActive
+              !currentFilter?.tipo && styles.filterButtonActive
             ]}
             onPress={() => navigation.navigate('Historial')}
           >
             <Text style={[
               styles.filterButtonText,
-              !filter?.tipo && styles.filterButtonTextActive
+              !currentFilter?.tipo && styles.filterButtonTextActive
             ]}>
               Todos
             </Text>
@@ -292,13 +307,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              filter?.tipo === 'pago' && styles.filterButtonActive
+              currentFilter?.tipo === 'pago' && styles.filterButtonActive
             ]}
             onPress={() => navigation.navigate('Historial', { filter: { tipo: 'pago' } })}
           >
             <Text style={[
               styles.filterButtonText,
-              filter?.tipo === 'pago' && styles.filterButtonTextActive
+              currentFilter?.tipo === 'pago' && styles.filterButtonTextActive
             ]}>
               Pagos
             </Text>
@@ -307,13 +322,13 @@ export default function PantallaHistorial() {
           <TouchableOpacity 
             style={[
               styles.filterButton, 
-              filter?.tipo === 'cobro' && styles.filterButtonActive
+              currentFilter?.tipo === 'cobro' && styles.filterButtonActive
             ]}
             onPress={() => navigation.navigate('Historial', { filter: { tipo: 'cobro' } })}
           >
             <Text style={[
               styles.filterButtonText,
-              filter?.tipo === 'cobro' && styles.filterButtonTextActive
+              currentFilter?.tipo === 'cobro' && styles.filterButtonTextActive
             ]}>
               Cobros
             </Text>
@@ -323,7 +338,7 @@ export default function PantallaHistorial() {
         {/* Botón para crear recordatorio general */}
         <TouchableOpacity 
           style={styles.generalReminderButton}
-          onPress={() => navigation.navigate('ReminderFormScreen', { initialType: 'general' })}
+          onPress={() => navigation.navigate('ReminderForm', { initialType: 'general' })}
         >
           <Ionicons name="notifications-outline" size={20} color="#3498DB" />
           <Text style={styles.generalReminderText}>Nuevo Recordatorio</Text>

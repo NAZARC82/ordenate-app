@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
-import { getDateString, sameDay, getTodayString } from '../utils/date';
+import { getDateString, sameDay, getTodayString, toYMDLocal, parseYMDToLocal, todayLocalStart } from '../utils/date';
 import { getDayStateMap, getColorForEstado } from '../utils/estadoDominante';
 import { getEstadoColor } from '../utils/estadoColor';
 
@@ -38,10 +38,11 @@ export default function PantallaAlmanaque() {
   const [selectedDay, setSelectedDay] = useState(getTodayString());
 
   const toISOFromSelected = (dayStr) => {
-    // Anclamos a las 12:00 para evitar offsets por zona horaria
-    const [year, month, day] = dayStr.split('-');
-    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0);
-    return localDate.toISOString();
+    // Usar parseYMDToLocal para evitar offsets de zona horaria
+    const localDate = parseYMDToLocal(dayStr);
+    // Convertir a ISO manteniendo la fecha local (ajustar a mediodía UTC)
+    const [year, month, day] = dayStr.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString();
   };
 
   // Memoized day state map for performance

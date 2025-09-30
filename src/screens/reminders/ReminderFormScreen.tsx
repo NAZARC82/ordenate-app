@@ -33,26 +33,28 @@ interface MovementData {
 }
 
 interface ReminderFormScreenProps {
+  mode?: 'create' | 'edit'; // Modo de operación
   reminderId?: string; // Para editar recordatorio existente
   linkedMovementId?: string; // Para crear desde movimiento
-  initialType?: ReminderType;
+  type?: ReminderType; // Tipo inicial (renombrado de initialType)
   movementData?: MovementData; // Datos del movimiento para recordatorios específicos
 }
 
 const ReminderFormScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const params = route.params as ReminderFormScreenProps || {};
+  const params = (route.params as ReminderFormScreenProps) || {};
+  const { mode = 'create', type = 'general', linkedMovementId: paramLinkedMovementId = null, reminderId, movementData } = params;
 
   // Estados del formulario
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
-  const [type, setType] = useState(params.initialType || 'general');
+  const [formType, setFormType] = useState(type);
   const [datetime, setDatetime] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000)); // +2 horas por defecto
   const [repeat, setRepeat] = useState('nunca');
   const [selectedAdvances, setSelectedAdvances] = useState([60]); // 1 hora por defecto
   const [notes, setNotes] = useState('');
-  const [linkedMovementId, setLinkedMovementId] = useState(params.linkedMovementId);
+  const [linkedMovementId, setLinkedMovementId] = useState(paramLinkedMovementId);
 
   // Estados de UI
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -89,7 +91,7 @@ const ReminderFormScreen = () => {
       // Auto-generar título según el tipo
       generateAutoTitle();
     }
-  }, [params.reminderId, type]);
+  }, [params.reminderId, formType]);
 
   const loadReminderForEdit = async () => {
     try {
@@ -104,7 +106,7 @@ const ReminderFormScreen = () => {
 
       // Llenar el formulario con los datos del recordatorio
       setTitle(reminder.title);
-      setType(reminder.type);
+      setFormType(reminder.type);
       setDatetime(new Date(reminder.datetimeISO));
       setSelectedAdvances(reminder.advance);
       setRepeat(reminder.repeat);
@@ -132,17 +134,17 @@ const ReminderFormScreen = () => {
       
       if (tipo === 'pago') {
         setTitle(`Pago ${nota ? `a ${nota}` : ''} ${montoFormatted}`);
-        setType('pago');
+        setFormType('pago');
       } else if (tipo === 'cobro') {
         setTitle(`Cobro ${nota ? `de ${nota}` : ''} ${montoFormatted}`);
-        setType('cobro');
+        setFormType('cobro');
       }
     } else {
       // Recordatorio general sin vinculación
       const now = new Date();
       const timeString = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       
-      switch (type) {
+      switch (formType) {
         case 'pago':
           setTitle('Recordatorio de pago');
           break;
@@ -224,7 +226,7 @@ const ReminderFormScreen = () => {
       const reminderDraft: ReminderDraft = {
         title: title.trim(),
         linkedMovementId,
-        type,
+        type: formType,
         datetimeISO: datetime.toISOString(),
         advance: selectedAdvances,
         repeat: repeat as RepeatFrequency,
@@ -332,17 +334,39 @@ const ReminderFormScreen = () => {
                   key={option.value}
                   style={[
                     styles.typeOption,
-                    type === option.value && styles.typeOptionSelected,
+                    formType === option.value && styles.typeOptionSelected,
                     disabled && styles.typeOptionDisabled,
                     { borderColor: option.color }
                   ]}
-                  onPress={() => !disabled && setType(option.value)}
+                  onPress={() => {
+                    if (!disabled) {
+                      setFormType(option.value);
+                      
+                      // Navegar al tab Historial con filtro específico
+                      if (option.value === 'pago') {
+                        navigation.getParent()?.getParent()?.navigate('Historial', { 
+                          screen: 'HistoryMain', 
+                          params: { initialFilter: 'pagos' } 
+                        });
+                      } else if (option.value === 'cobro') {
+                        navigation.getParent()?.getParent()?.navigate('Historial', { 
+                          screen: 'HistoryMain', 
+                          params: { initialFilter: 'cobros' } 
+                        });
+                      } else if (option.value === 'general') {
+                        navigation.getParent()?.getParent()?.navigate('Historial', { 
+                          screen: 'HistoryMain', 
+                          params: { initialFilter: 'todos' } 
+                        });
+                      }
+                    }
+                  }}
                   disabled={disabled}
                 >
                   <Ionicons 
                     name={option.icon as any} 
                     size={24} 
-                    color={disabled ? '#CCC' : (type === option.value ? 'white' : option.color)} 
+                    color={disabled ? '#CCC' : (formType === option.value ? 'white' : option.color)} 
                   />
                   <Text style={[
                     styles.typeOptionText,

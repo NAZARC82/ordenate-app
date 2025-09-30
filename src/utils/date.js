@@ -4,6 +4,47 @@
  */
 
 /**
+ * Get current date as local start-of-day (no UTC conversion)
+ * @returns {Date} - Today at 00:00:00 local time
+ */
+export const todayLocalStart = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+/**
+ * Convert Date to YYYY-MM-DD in local timezone (no UTC)
+ * @param {Date} date - Date object
+ * @returns {string} - Date in YYYY-MM-DD format (local)
+ */
+export const toYMDLocal = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Parse YYYY-MM-DD string to local Date at start-of-day
+ * @param {string} ymdString - Date string in YYYY-MM-DD format
+ * @returns {Date} - Date at 00:00:00 local time
+ */
+export const parseYMDToLocal = (ymdString) => {
+  if (!ymdString) return new Date();
+  
+  try {
+    const [year, month, day] = ymdString.split('-').map(Number);
+    const date = new Date(year, month - 1, day, 12, 0, 0); // Start at noon to avoid DST issues
+    date.setHours(0, 0, 0, 0); // Then set to start of day
+    return date;
+  } catch (error) {
+    console.warn('Invalid YMD string:', ymdString);
+    return new Date();
+  }
+};
+
+/**
  * Extract YYYY-MM-DD string from ISO date string, ignoring time/timezone
  * @param {string} isoString - ISO 8601 date string
  * @returns {string} - Date in YYYY-MM-DD format
@@ -30,11 +71,11 @@ export const sameDay = (iso1, iso2) => {
 };
 
 /**
- * Get current date in YYYY-MM-DD format
+ * Get current date in YYYY-MM-DD format (local timezone)
  * @returns {string} - Today's date in YYYY-MM-DD format
  */
 export const getTodayString = () => {
-  return new Date().toISOString().split('T')[0];
+  return toYMDLocal(todayLocalStart());
 };
 
 /**
