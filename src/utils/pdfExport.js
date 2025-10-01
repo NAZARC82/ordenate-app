@@ -302,14 +302,13 @@ function buildPdfHtml(movimientos, options = {}) {
                 flex-wrap: wrap;
             }
             
-            /* Resumen Ejecutivo con degradado violeta */
+            /* Resumen Ejecutivo - contenedor limpio */
             .summary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
+                background: transparent;
+                color: #2c3e50;
                 padding: 16px;
                 border-radius: 8px;
                 margin-bottom: 16px;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
                 page-break-inside: avoid;
             }
             
@@ -319,6 +318,7 @@ function buildPdfHtml(movimientos, options = {}) {
                 font-weight: 600;
                 text-align: center;
                 font-family: 'Poppins', sans-serif;
+                color: #2c3e50;
             }
             
             .summary-grid {
@@ -327,13 +327,13 @@ function buildPdfHtml(movimientos, options = {}) {
                 gap: 12px;
             }
             
-            /* Tarjetas con sombra suave */
+            /* Tarjetas con fondo violeta degradado y sombra suave */
             .summary-item {
-                background: rgba(255,255,255,0.15);
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 border-radius: 8px;
                 padding: 12px;
                 text-align: center;
-                backdrop-filter: blur(10px);
+                color: white;
                 box-shadow: 0 2px 6px rgba(0,0,0,0.15);
             }
             

@@ -1,0 +1,236 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Prueba de Colores - Ordénate</title>
+        <style>
+            body {
+                font-family: 'Poppins', sans-serif;
+                padding: 20px;
+                background: #ffffff;
+            }
+            
+            /* Resumen Ejecutivo - contenedor limpio */
+            .summary {
+                background: transparent;
+                color: #2c3e50;
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+            
+            .summary h3 {
+                margin: 0 0 12px 0;
+                font-size: 14px;
+                font-weight: 600;
+                text-align: center;
+                color: #2c3e50;
+            }
+            
+            .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+            }
+            
+            /* Tarjetas con fondo violeta degradado y sombra suave */
+            .summary-item {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 8px;
+                padding: 12px;
+                text-align: center;
+                color: white;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            }
+            
+            .summary-item .icon {
+                font-size: 18px;
+                margin-bottom: 4px;
+                display: block;
+            }
+            
+            .summary-item .label {
+                display: block;
+                font-size: 11px;
+                opacity: 0.9;
+                margin-bottom: 4px;
+                font-weight: 500;
+            }
+            
+            .summary-item .value {
+                display: block;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            
+            /* Tabla con degradado azul en header */
+            .table-container {
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+                background: white;
+                margin-bottom: 16px;
+            }
+            
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            
+            th {
+                background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+                color: white;
+                font-weight: 700;
+                text-align: left;
+                font-size: 12px;
+                padding: 12px;
+            }
+            
+            td {
+                padding: 12px;
+                border-bottom: 1px solid #e2e8f0;
+                font-size: 12px;
+            }
+            
+            tbody tr:nth-child(odd) {
+                background-color: #ffffff;
+            }
+            
+            tbody tr:nth-child(even) {
+                background-color: #f8f9fa;
+            }
+            
+            .color-test {
+                margin: 20px 0;
+                padding: 15px;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+            }
+            
+            .color-sample {
+                display: inline-block;
+                width: 50px;
+                height: 30px;
+                margin: 5px;
+                border-radius: 4px;
+                vertical-align: middle;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🎨 Prueba de Paleta de Colores</h1>
+        
+        <div class="color-test">
+            <h3>🔍 Muestras de Colores Definidos</h3>
+            <p><span class="color-sample" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></span> Degradado Violeta: #667eea → #764ba2</p>
+            <p><span class="color-sample" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);"></span> Degradado Azul: #3498db → #2980b9</p>
+            <p><span class="color-sample" style="background: #e74c3c;"></span> URGENTE/Pagos: #e74c3c</p>
+            <p><span class="color-sample" style="background: #f1c40f;"></span> PENDIENTE: #f1c40f</p>
+            <p><span class="color-sample" style="background: #27ae60;"></span> PAGADO/Cobros: #27ae60</p>
+        </div>
+        
+        <!-- Resumen Ejecutivo con tarjetas individuales violeta degradado -->
+        <div class="summary">
+            <h3>📈 Resumen Ejecutivo</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="icon">💚</span>
+                    <span class="label">Cobros Totales</span>
+                    <span class="value">$40.000,00</span>
+                </div>
+                <div class="summary-item">
+                    <span class="icon">🪙</span>
+                    <span class="label">Pagos Totales</span>
+                    <span class="value">$8.500,00</span>
+                </div>
+                <div class="summary-item">
+                    <span class="icon">⚖️</span>
+                    <span class="label">Balance Neto</span>
+                    <span class="value" style="color: #27ae60; font-weight: 700;">
+                        +$31.500,00
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de ejemplo -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>📅 Fecha</th>
+                        <th>💰 Tipo</th>
+                        <th>💵 Monto</th>
+                        <th>📋 Estado</th>
+                        <th>📝 Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background-color: #ffffff;">
+                        <td>30/09/2025</td>
+                        <td style="font-weight: 600; color: #27ae60;">Cobro</td>
+                        <td style="text-align: right; font-weight: bold; color: #27ae60;">+$15.000,00</td>
+                        <td>
+                          <span style="
+                            display: inline-block;
+                            padding: 4px 8px;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            background-color: #27ae60;
+                            color: #ffffff;
+                          ">pagado</span>
+                        </td>
+                        <td>Cliente Premium</td>
+                      </tr><tr style="background-color: #f8f9fa;">
+                        <td>29/09/2025</td>
+                        <td style="font-weight: 600; color: #e74c3c;">Pago</td>
+                        <td style="text-align: right; font-weight: bold; color: #e74c3c;">-$8.500,00</td>
+                        <td>
+                          <span style="
+                            display: inline-block;
+                            padding: 4px 8px;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            background-color: #f1c40f;
+                            color: #000000;
+                          ">pendiente</span>
+                        </td>
+                        <td>Materiales oficina</td>
+                      </tr><tr style="background-color: #ffffff;">
+                        <td>28/09/2025</td>
+                        <td style="font-weight: 600; color: #27ae60;">Cobro</td>
+                        <td style="text-align: right; font-weight: bold; color: #27ae60;">+$25.000,00</td>
+                        <td>
+                          <span style="
+                            display: inline-block;
+                            padding: 4px 8px;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            background-color: #e74c3c;
+                            color: #ffffff;
+                          ">urgente</span>
+                        </td>
+                        <td>Consultoría Q3</td>
+                      </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="color-test">
+            <h3>✅ Verificación Visual</h3>
+            <p>• Las tarjetas del resumen deben tener fondo violeta degradado (#667eea → #764ba2)</p>
+            <p>• Los headers de tabla deben tener fondo azul degradado (#3498db → #2980b9)</p>
+            <p>• Los montos positivos (cobros) deben ser verdes (#27ae60)</p>
+            <p>• Los montos negativos (pagos) deben ser rojos (#e74c3c)</p>
+            <p>• Estados: URGENTE (#e74c3c), PENDIENTE (#f1c40f), PAGADO (#27ae60)</p>
+        </div>
+    </body>
+    </html>
+  
