@@ -146,7 +146,7 @@ function generateFileName(contexto, data = {}, extension = 'pdf') {
 }
 
 /**
- * Construir HTML del PDF con estilos avanzados
+ * Construir HTML del PDF con diseño idéntico a la referencia colorida
  * @param {Array} movimientos - Lista de movimientos filtrados
  * @param {Object} options - Opciones de exportación
  * @returns {string} HTML completo del reporte
@@ -158,6 +158,7 @@ function buildPdfHtml(movimientos, options = {}) {
     columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
     isSelection = false
   } = options;
+  
   // Calcular totales
   let totalPagos = 0;
   let totalCobros = 0;
@@ -172,7 +173,7 @@ function buildPdfHtml(movimientos, options = {}) {
 
   const balance = totalCobros - totalPagos;
 
-  // Generar encabezados de columnas
+  // Generar encabezados de columnas con íconos
   const headers = [];
   if (columnas.includes('fecha')) headers.push('<th>📅 Fecha</th>');
   if (columnas.includes('tipo')) headers.push('<th>💰 Tipo</th>');
@@ -180,7 +181,7 @@ function buildPdfHtml(movimientos, options = {}) {
   if (columnas.includes('estado')) headers.push('<th>📋 Estado</th>');
   if (columnas.includes('nota')) headers.push('<th>📝 Nota</th>');
 
-  // Generar filas de la tabla con zebra rows
+  // Generar filas de la tabla con estilos exactos
   const filasMovimientos = movimientos
     .sort((a, b) => new Date(b.fechaISO) - new Date(a.fechaISO))
     .map((mov, index) => {
@@ -190,43 +191,51 @@ function buildPdfHtml(movimientos, options = {}) {
       const cells = [];
       
       if (columnas.includes('fecha')) {
-        cells.push(`<td style="border-bottom: 1px solid #e0e0e0;">${formatDate(mov.fechaISO)}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; padding: 12px;">${formatDate(mov.fechaISO)}</td>`);
       }
       
       if (columnas.includes('tipo')) {
         const tipoTexto = mov.tipo === 'pago' ? 'Pago' : 'Cobro';
-        const tipoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
-        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: ${tipoColor};">${tipoTexto}</td>`);
+        const tipoColor = mov.tipo === 'pago' ? '#e74c3c' : '#27ae60';
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; padding: 12px; font-weight: 600; color: ${tipoColor};">${tipoTexto}</td>`);
       }
       
       if (columnas.includes('monto')) {
-        const signo = mov.tipo === 'pago' ? '–' : '+';
-        const montoColor = mov.tipo === 'pago' ? '#c62828' : '#2e7d32';
+        const signo = mov.tipo === 'pago' ? '-' : '+';
+        const montoColor = mov.tipo === 'pago' ? '#e74c3c' : '#27ae60';
         const montoTexto = `${signo}$${formatCurrency(mov.monto)}`;
-        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: bold; color: ${montoColor};">${montoTexto}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; padding: 12px; text-align: right; font-weight: bold; color: ${montoColor};">${montoTexto}</td>`);
       }
       
       if (columnas.includes('estado')) {
         const estadoTexto = mov.estado || 'pendiente';
-        const estadoColor = getEstadoColorPDF(estadoTexto);
+        const estadoColors = getEstadoColorPDF(estadoTexto);
         cells.push(`
-          <td style="border-bottom: 1px solid #e0e0e0;">
-            <span class="badge" style="background-color: ${estadoColor}; color: white;">
-              ${estadoTexto}
-            </span>
+          <td style="border-bottom: 1px solid #e0e0e0; padding: 12px;">
+            <span style="
+              display: inline-block;
+              padding: 4px 8px;
+              border-radius: 6px;
+              font-size: 10px;
+              line-height: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              background-color: ${estadoColors.backgroundColor};
+              color: ${estadoColors.color};
+            ">${estadoTexto}</span>
           </td>
         `);
       }
       
       if (columnas.includes('nota')) {
         const notaTexto = mov.nota || '—';
-        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; word-wrap: break-word; color: #555;">${notaTexto}</td>`);
+        cells.push(`<td style="border-bottom: 1px solid #e0e0e0; padding: 12px; word-wrap: break-word; color: #555;">${notaTexto}</td>`);
       }
 
       return `<tr style="${rowStyle} page-break-inside: avoid;">${cells.join('')}</tr>`;
     }).join('');
 
-  // Mensaje para tablas vacías (fila vacía si no hay movimientos)
+  // Mensaje para tablas vacías
   const filaVacia = movimientos.length === 0 ? `
     <tr>
       <td colspan="${headers.length}" style="padding: 30px; text-align: center; color: #64748b; font-style: italic; background-color: #f8fafc;">
@@ -236,303 +245,198 @@ function buildPdfHtml(movimientos, options = {}) {
     </tr>
   ` : '';
 
-  // Plantilla HTML con columnas dinámicas
+  // Plantilla HTML con especificaciones exactas del usuario
   return `
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=3.0, user-scalable=yes">
-        <title>Reporte - Ordenate</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ordénate · Reporte Financiero</title>
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+            
             @page {
-                margin: 20mm;
-                @top-center {
-                    content: "Ordenate - Reporte Financiero";
-                    font-size: 12px;
-                    color: #666;
-                }
-                @bottom-center {
-                    content: "Página " counter(page) " de " counter(pages);
-                    font-size: 10px;
-                    color: #999;
-                }
+                margin: 24px;
+                size: A4;
             }
-            html, body {
+            
+            * {
+                box-sizing: border-box;
                 margin: 0;
                 padding: 0;
-                box-sizing: border-box;
-                -webkit-text-size-adjust: 100%;
-                text-rendering: optimizeLegibility;
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
-                background: #f6f7f9;
             }
-            *, *::before, *::after {
-                box-sizing: border-box;
-            }
+            
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+                font-family: 'Poppins', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
                 font-size: 12px;
                 line-height: 1.5;
                 color: #2c3e50;
-            }
-            .page {
-                width: 100%;
-                max-width: 880px;
-                margin: 0 auto;
+                background: #ffffff;
                 padding: 16px;
             }
-            /* Responsive tables and media */
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                table-layout: fixed;
-            }
-            th, td {
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-                padding: 10px;
-            }
-            /* Column widths for better layout */
-            th:nth-child(1) { width: 20%; } /* Fecha */
-            th:nth-child(2) { width: 16%; } /* Tipo */
-            th:nth-child(3) { width: 18%; } /* Monto */
-            th:nth-child(4) { width: 18%; } /* Estado */
-            th:nth-child(5) { width: 28%; } /* Nota */
             
-            img, svg, canvas, video {
-                max-width: 100%;
-                height: auto;
-                display: block;
-            }
-            /* Prevent blur from transforms */
-            .page, .page * {
-                transform: none !important;
-                filter: none !important;
-            }
+            /* Header con íconos */
             .header {
                 text-align: center;
-                margin-bottom: 25px;
+                margin-bottom: 16px;
                 padding: 20px 0;
-                border-bottom: 3px solid #3498db;
-                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-                page-break-after: avoid;
             }
+            
             .header h1 {
                 color: #2c3e50;
-                font-size: 28px;
-                margin: 0 0 10px 0;
+                font-size: 22px;
+                margin: 0 0 8px 0;
                 font-weight: 700;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                font-family: 'Poppins', sans-serif;
             }
-            .header .subtitle {
+            
+            .header .meta-info {
                 color: #64748b;
-                margin: 8px 0;
-                font-size: 14px;
-                font-weight: 500;
+                margin: 4px 0;
+                font-size: 12px;
+                font-weight: 400;
+                display: flex;
+                justify-content: center;
+                gap: 8px;
+                flex-wrap: wrap;
             }
+            
+            /* Resumen Ejecutivo con degradado violeta */
             .summary {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
-                padding: 14px;
-                border-radius: 14px;
-                margin-bottom: 24px;
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.25);
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
                 page-break-inside: avoid;
-                text-align: center;
             }
-            .summary-grid {
-                display: flex;
-                justify-content: center;
-                align-items: stretch;
-                gap: 12px;
-                margin-top: 12px;
-                overflow-x: auto;
-                overflow-y: hidden;
-                padding: 2px;
-                scroll-behavior: smooth;
-            }
+            
             .summary h3 {
-                grid-column: 1 / -1;
                 margin: 0 0 12px 0;
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: 600;
                 text-align: center;
-                white-space: nowrap;
+                font-family: 'Poppins', sans-serif;
             }
+            
+            .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+            }
+            
+            /* Tarjetas con sombra suave */
             .summary-item {
-                flex: 0 0 auto;
-                min-width: 140px;
-                max-width: 180px;
-                text-align: center;
-                padding: 12px 10px;
                 background: rgba(255,255,255,0.15);
-                border-radius: 10px;
+                border-radius: 8px;
+                padding: 12px;
+                text-align: center;
                 backdrop-filter: blur(10px);
-                white-space: nowrap;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
             }
+            
+            .summary-item .icon {
+                font-size: 18px;
+                margin-bottom: 4px;
+                display: block;
+            }
+            
             .summary-item .label {
                 display: block;
                 font-size: 11px;
-                line-height: 14px;
                 opacity: 0.9;
                 margin-bottom: 4px;
                 font-weight: 500;
-                white-space: nowrap;
             }
+            
             .summary-item .value {
                 display: block;
                 font-size: 16px;
-                line-height: 20px;
                 font-weight: 700;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                white-space: nowrap;
+                font-family: 'Poppins', sans-serif;
             }
+            
+            /* Tabla con degradado azul en header */
             .table-container {
-                margin-top: 25px;
-                border-radius: 12px;
+                border-radius: 8px;
                 overflow: hidden;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
                 background: white;
-                overflow-x: hidden;
+                margin-bottom: 16px;
             }
+            
             table {
                 width: 100%;
                 border-collapse: collapse;
                 background: white;
             }
-            /* Badge styles for estado column */
-            .badge {
-                display: inline-block;
-                padding: 2px 5px;
-                border-radius: 6px;
-                font-size: 8px;
-                line-height: 10px;
-                font-weight: 700;
-                white-space: nowrap;
-                text-transform: uppercase;
-                max-width: 50px;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                vertical-align: middle;
-            }
+            
             th {
                 background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
                 color: white;
                 font-weight: 700;
                 text-align: left;
-                font-size: 11px;
-                letter-spacing: 0.3px;
-                border-bottom: 2px solid #2980b9;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                font-size: 12px;
+                padding: 12px;
+                border: none;
+                font-family: 'Poppins', sans-serif;
             }
+            
             tbody tr:nth-child(odd) {
                 background-color: #ffffff;
             }
+            
             tbody tr:nth-child(even) {
-                background-color: #f8fafc;
+                background-color: #f8f9fa;
             }
+            
             tbody tr {
-                transition: background-color 0.2s ease;
                 page-break-inside: avoid;
             }
-            tbody tr:hover {
-                background-color: #e1f5fe !important;
-            }
+            
             td {
                 padding: 12px;
                 border-bottom: 1px solid #e2e8f0;
                 vertical-align: middle;
-                font-size: 11px;
+                font-size: 12px;
             }
+            
+            /* Footer con ícono */
             .footer {
-                margin-top: 40px;
+                margin-top: 16px;
                 text-align: center;
                 font-size: 11px;
-                color: #64748b;
-                border-top: 2px solid #e2e8f0;
-                padding-top: 20px;
+                color: #7f8c8d;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 16px;
                 page-break-inside: avoid;
             }
+            
             .footer .app-info {
                 font-weight: 600;
                 color: #3498db;
-                margin-bottom: 5px;
+                margin-bottom: 4px;
+                font-family: 'Poppins', sans-serif;
             }
-            /* Mobile responsive styles */
-            @media (max-width: 420px) {
-                .page {
-                    padding: 10px;
-                }
-                .summary {
-                    padding: 10px;
-                    border-radius: 10px;
-                }
-                .summary-grid {
-                    gap: 8px;
-                    justify-content: flex-start;
-                    padding-bottom: 4px;
-                }
-                .summary h3 {
-                    font-size: 13px;
-                    margin-bottom: 10px;
-                }
-                .summary-item {
-                    min-width: 120px;
-                    max-width: 150px;
-                    padding: 8px 6px;
-                    border-radius: 8px;
-                }
-                .summary-item .label {
-                    font-size: 10px;
-                    line-height: 12px;
-                }
-                .summary-item .value {
-                    font-size: 14px;
-                    line-height: 18px;
-                }
-                th, td {
-                    padding: 6px;
-                    font-size: 10px;
-                }
-                th {
-                    font-size: 10px;
-                }
-                th:nth-child(1) { width: 20%; }
-                th:nth-child(2) { width: 15%; }
-                th:nth-child(3) { width: 20%; }
-                th:nth-child(4) { width: 15%; }
-                th:nth-child(5) { width: 30%; }
-                .badge {
-                    padding: 1px 3px;
-                    font-size: 7px;
-                    line-height: 9px;
-                    max-width: 40px;
-                }
-            }
+            
+            /* Responsive para impresión */
             @media print {
                 body { 
                     margin: 0; 
-                    padding: 0;
+                    padding: 16px;
                     -webkit-print-color-adjust: exact;
                     color-adjust: exact;
                 }
                 .header { 
                     page-break-after: avoid;
-                    margin-bottom: 20px;
                 }
                 .summary {
                     page-break-after: avoid;
-                    margin-bottom: 25px;
                 }
                 tr { 
                     page-break-inside: avoid; 
-                }
-                .table-container {
-                    page-break-inside: auto;
                 }
                 thead {
                     display: table-header-group;
@@ -541,42 +445,48 @@ function buildPdfHtml(movimientos, options = {}) {
         </style>
     </head>
     <body>
-        <div class="page">
+        <!-- Header con íconos pequeños -->
         <div class="header">
-            <h1>� Ordenate</h1>
-            <div class="subtitle">�📊 Reporte Financiero</div>
-            <div class="subtitle">📅 ${new Date().toLocaleDateString('es-UY', {
-              weekday: 'long',
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric'
-            })}</div>
-            <div class="subtitle">⏰ ${new Date().toLocaleTimeString('es-UY', {
-              hour: '2-digit',
-              minute: '2-digit'
-            })}</div>
+            <h1>Ordénate · Reporte Financiero</h1>
+            <div class="meta-info">
+                <span>📅 ${new Date().toLocaleDateString('es-UY', {
+                  weekday: 'long',
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric'
+                })}</span>
+                <span>⏰ ${new Date().toLocaleTimeString('es-UY', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</span>
+            </div>
         </div>
 
+        <!-- Resumen Ejecutivo con degradado violeta y íconos grandes -->
         <div class="summary">
             <h3>📈 Resumen Ejecutivo</h3>
             <div class="summary-grid">
                 <div class="summary-item">
-                    <span class="label">💚 Cobros Totales</span>
+                    <span class="icon">💚</span>
+                    <span class="label">Cobros Totales</span>
                     <span class="value">$${formatCurrency(totalCobros)}</span>
                 </div>
                 <div class="summary-item">
-                    <span class="label">💸 Pagos Totales</span>
+                    <span class="icon">🪙</span>
+                    <span class="label">Pagos Totales</span>
                     <span class="value">$${formatCurrency(totalPagos)}</span>
                 </div>
                 <div class="summary-item">
-                    <span class="label">⚖️ Balance Neto</span>
-                    <span class="value" style="color: ${balance >= 0 ? '#00e676' : '#ff5252'};">
+                    <span class="icon">⚖️</span>
+                    <span class="label">Balance Neto</span>
+                    <span class="value" style="color: ${balance >= 0 ? '#27ae60' : '#e74c3c'};">
                         ${balance >= 0 ? '+' : ''}$${formatCurrency(Math.abs(balance))}
                     </span>
                 </div>
             </div>
         </div>
 
+        <!-- Tabla con cabecera degradado azul -->
         <div class="table-container">
             <table>
                 <thead>
@@ -591,11 +501,11 @@ function buildPdfHtml(movimientos, options = {}) {
             </table>
         </div>
 
+        <!-- Footer con ícono -->
         <div class="footer">
-            <div class="app-info">🏢 Generado por Ordenate App</div>
-            <div>📱 Tu asistente financiero personal</div>
-            <div>📄 ${movimientos.length} movimiento(s) incluido(s) en este reporte</div>
-        </div>
+            <div class="app-info">📱 Generado por Ordénate App</div>
+            <div>Tu asistente financiero personal</div>
+            <div>${movimientos.length} movimiento(s) incluido(s) en este reporte</div>
         </div>
     </body>
     </html>
@@ -603,18 +513,22 @@ function buildPdfHtml(movimientos, options = {}) {
 }
 
 /**
- * Obtener color de estado para PDF
+ * Obtener color de estado para PDF según especificaciones exactas
  * @param {string} estado - Estado del movimiento
- * @returns {string} Color hex
+ * @returns {Object} Objeto con backgroundColor y color
  */
 function getEstadoColorPDF(estado) {
-  const colores = {
-    urgente: '#FF4444',
-    pronto: '#FFA500',
-    pendiente: '#FFD700',
-    pagado: '#4CAF50'
-  };
-  return colores[estado] || '#CCCCCC';
+  const estadoLower = (estado || '').toLowerCase();
+  switch(estadoLower) {
+    case 'urgente':
+      return { backgroundColor: '#e74c3c', color: '#ffffff' };
+    case 'pendiente':
+      return { backgroundColor: '#f1c40f', color: '#000000' };
+    case 'pagado':
+      return { backgroundColor: '#27ae60', color: '#ffffff' };
+    default:
+      return { backgroundColor: '#95a5a6', color: '#ffffff' };
+  }
 }
 
 /**
