@@ -7,8 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useMovimientos } from '../state/MovimientosContext'
 import { getDateString } from '../utils/date'
 import { getEstadoColor } from '../utils/estadoColor'
-import { exportarPDFSeleccion } from '../utils/pdfExport'
-import { exportCSV, exportPDF, exportPDFStyled } from '../utils/exporters'
+import { exportPDFStyled, exportCSV } from '../utils/exporters'
 import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
 import ActionSheet from '../components/ActionSheet'
 
@@ -471,6 +470,17 @@ export default function PantallaHistorial() {
         return;
       }
 
+      // Mapear datos al formato esperado por las nuevas funciones de export
+      const movimientosParaExport = itemsToExport.map(mov => ({
+        id: mov.id,
+        tipo: mov.tipo,
+        titulo: mov.titulo || '',
+        nota: mov.nota || '',
+        monto: mov.monto,
+        fechaISO: mov.fechaISO,
+        estado: mov.estado || 'PENDIENTE'
+      }));
+
       // Construir nombre de archivo contextual y metadatos
       const selectedCount = selectedItems.size > 0 ? selectedItems.size : undefined;
       
@@ -511,7 +521,7 @@ export default function PantallaHistorial() {
       // Preparar metadatos para PDF estilizado
       const meta = {
         fechaTitulo,
-        fechaHora: new Date().toLocaleTimeString('es-UY', {
+        hora: new Date().toLocaleTimeString('es-UY', {
           hour: '2-digit',
           minute: '2-digit'
         }),
@@ -520,9 +530,9 @@ export default function PantallaHistorial() {
       
       // Exportar según el tipo
       if (kind === 'pdf') {
-        await exportPDFStyled(itemsToExport, filename, meta);
+        await exportPDFStyled(movimientosParaExport, filename, meta);
       } else if (kind === 'csv') {
-        await exportCSV(itemsToExport, filename);
+        await exportCSV(movimientosParaExport, filename);
       }
       
       // Limpiar selección si había
