@@ -11,7 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  Platform
+  Platform,
+  TouchableWithoutFeedback
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -172,10 +173,32 @@ const ReminderFormScreen = () => {
     }
   };
 
+  // Funciones para manejo exclusivo de pickers
+  const openDatePicker = () => {
+    // Cerrar time picker si está abierto
+    setShowTimePicker(false);
+    // Abrir date picker
+    setShowDatePicker(true);
+  };
+
+  const openTimePicker = () => {
+    // Cerrar date picker si está abierto
+    setShowDatePicker(false);
+    // Abrir time picker
+    setShowTimePicker(true);
+  };
+
+  const closePickers = () => {
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+  };
+
   const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    // En Android, cerrar inmediatamente; en iOS mantener abierto si no hay cancelación
+    const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
+    setShowDatePicker(!shouldClose);
     
-    if (selectedDate) {
+    if (selectedDate && event.type !== 'dismissed') {
       // Preservar la hora actual, actualizar solo la fecha
       const newWhen = new Date(when);
       newWhen.setFullYear(selectedDate.getFullYear());
@@ -185,13 +208,20 @@ const ReminderFormScreen = () => {
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
+      
+      // Cerrar picker después de seleccionar en Android
+      if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+      }
     }
   };
 
   const onChangeTime = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    // En Android, cerrar inmediatamente; en iOS mantener abierto si no hay cancelación
+    const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
+    setShowTimePicker(!shouldClose);
     
-    if (selectedTime) {
+    if (selectedTime && event.type !== 'dismissed') {
       // Preservar la fecha actual, actualizar solo la hora
       const newWhen = new Date(when);
       newWhen.setHours(selectedTime.getHours());
@@ -202,6 +232,11 @@ const ReminderFormScreen = () => {
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
+      
+      // Cerrar picker después de seleccionar en Android
+      if (Platform.OS === 'android') {
+        setShowTimePicker(false);
+      }
     }
   };
 
@@ -355,29 +390,30 @@ const ReminderFormScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#666" />
-        </TouchableOpacity>
-        <Text style={styles.title}>
-          {params.reminderId ? 'Editar Recordatorio' : 'Nuevo Recordatorio'}
-        </Text>
-        <TouchableOpacity 
-          onPress={handleSave} 
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" size="small" />
-          ) : (
-            <Text style={styles.saveButtonText}>Guardar</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+    <TouchableWithoutFeedback onPress={closePickers}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+          <Text style={styles.title}>
+            {params.reminderId ? 'Editar Recordatorio' : 'Nuevo Recordatorio'}
+          </Text>
+          <TouchableOpacity 
+            onPress={handleSave} 
+            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Text style={styles.saveButtonText}>Guardar</Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Tipo de recordatorio */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de recordatorio</Text>
@@ -466,7 +502,7 @@ const ReminderFormScreen = () => {
           <Text style={styles.sectionTitle}>Fecha</Text>
           <TouchableOpacity 
             style={styles.dateTimeButton}
-            onPress={() => setShowDatePicker(true)}
+            onPress={openDatePicker}
           >
             <Ionicons name="calendar" size={20} color="#3498db" />
             <Text style={styles.dateTimeText}>{formatDate(when)}</Text>
@@ -479,7 +515,7 @@ const ReminderFormScreen = () => {
           <Text style={styles.sectionTitle}>Hora</Text>
           <TouchableOpacity 
             style={styles.dateTimeButton}
-            onPress={() => setShowTimePicker(true)}
+            onPress={openTimePicker}
           >
             <Ionicons name="time" size={20} color="#3498db" />
             <Text style={styles.dateTimeText}>{formatTime(when)}</Text>
@@ -545,26 +581,113 @@ const ReminderFormScreen = () => {
       </ScrollView>
 
       {/* Date/Time Pickers */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={when}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onChangeDate}
-          minimumDate={new Date()}
-        />
-      )}
+      {Platform.OS === 'android' ? (
+        <>
+          {showDatePicker && (
+            <DateTimePicker
+              value={when}
+              mode="date"
+              display="default"
+              onChange={onChangeDate}
+              minimumDate={new Date()}
+            />
+          )}
 
-      {showTimePicker && (
-        <DateTimePicker
-          value={when}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onChangeTime}
-          is24Hour={true}
-        />
+          {showTimePicker && (
+            <DateTimePicker
+              value={when}
+              mode="time"
+              display="default"
+              onChange={onChangeTime}
+              is24Hour={true}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {/* iOS Date Picker Modal */}
+          <Modal
+            visible={showDatePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowDatePicker(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <TouchableOpacity 
+                        onPress={() => setShowDatePicker(false)}
+                        style={styles.modalButton}
+                      >
+                        <Text style={styles.modalButtonText}>Cancelar</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.modalTitle}>Seleccionar Fecha</Text>
+                      <TouchableOpacity 
+                        onPress={() => setShowDatePicker(false)}
+                        style={styles.modalButton}
+                      >
+                        <Text style={[styles.modalButtonText, styles.modalButtonPrimary]}>Listo</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={when}
+                      mode="date"
+                      display="spinner"
+                      onChange={onChangeDate}
+                      minimumDate={new Date()}
+                      style={styles.picker}
+                    />
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
+          {/* iOS Time Picker Modal */}
+          <Modal
+            visible={showTimePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowTimePicker(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowTimePicker(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <TouchableOpacity 
+                        onPress={() => setShowTimePicker(false)}
+                        style={styles.modalButton}
+                      >
+                        <Text style={styles.modalButtonText}>Cancelar</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.modalTitle}>Seleccionar Hora</Text>
+                      <TouchableOpacity 
+                        onPress={() => setShowTimePicker(false)}
+                        style={styles.modalButton}
+                      >
+                        <Text style={[styles.modalButtonText, styles.modalButtonPrimary]}>Listo</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={when}
+                      mode="time"
+                      display="spinner"
+                      onChange={onChangeTime}
+                      is24Hour={true}
+                      style={styles.picker}
+                    />
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        </>
       )}
-    </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -749,6 +872,46 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 15,
     color: '#2c3e50',
+  },
+  // Estilos para modales iOS
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34, // Safe area para iPhone
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: '#3498db',
+  },
+  modalButtonPrimary: {
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  picker: {
+    height: 200,
   },
 });
 
