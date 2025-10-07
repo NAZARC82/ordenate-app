@@ -45,14 +45,16 @@ export const parseYMDToLocal = (ymdString) => {
 };
 
 /**
- * Extract YYYY-MM-DD string from ISO date string, ignoring time/timezone
+ * Extract YYYY-MM-DD string from ISO date string, using local timezone
+ * Avoids +1 day issues caused by UTC conversion
  * @param {string} isoString - ISO 8601 date string
- * @returns {string} - Date in YYYY-MM-DD format
+ * @returns {string} - Date in YYYY-MM-DD format (local)
  */
 export const getDateString = (isoString) => {
   if (!isoString) return '';
   try {
-    return new Date(isoString).toISOString().split('T')[0];
+    const date = new Date(isoString);
+    return toYMDLocal(date); // Use local timezone extraction
   } catch (error) {
     console.warn('Invalid ISO date string:', isoString);
     return '';
@@ -76,6 +78,17 @@ export const sameDay = (iso1, iso2) => {
  */
 export const getTodayString = () => {
   return toYMDLocal(todayLocalStart());
+};
+
+/**
+ * Create ISO string for "today" at noon (local timezone)
+ * Prevents +1 day issues caused by UTC conversion
+ * @returns {string} - Today's date as ISO string at noon local time
+ */
+export const getTodayISO = () => {
+  const today = todayLocalStart();
+  today.setHours(12, 0, 0, 0); // Set to noon local time
+  return today.toISOString();
 };
 
 /**
@@ -160,8 +173,10 @@ export const parseFechaUsuario = (input, today = new Date()) => {
     return { error: 'Fecha no válida (verifique día del mes)' };
   }
 
-  // Create ISO string at UTC noon (use Date.UTC to avoid timezone offset)
-  const iso = new Date(Date.UTC(yyyy, mm - 1, dd, 12, 0, 0)).toISOString();
+  // Create ISO string preserving local date (no UTC conversion)
+  // Use local timezone at noon to avoid any DST issues
+  const localDate = new Date(yyyy, mm - 1, dd, 12, 0, 0);
+  const iso = localDate.toISOString();
   
   // Format display value
   const displayValue = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${yyyy}`;

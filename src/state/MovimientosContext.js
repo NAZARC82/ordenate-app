@@ -1,6 +1,6 @@
 // src/state/MovimientosContext.js
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
-import { isValidISODate } from "../utils/date";
+import { isValidISODate, getTodayISO } from "../utils/date";
 
 const MovimientosContext = createContext();
 
@@ -39,7 +39,8 @@ export function MovimientosProvider({ children }) {
     try {
       const id = String(Date.now());
       const safeMonto = Number(monto);
-      const iso = fechaISO || (fecha ? new Date(fecha).toISOString() : new Date().toISOString());
+      // Fix timezone issue: use getTodayISO() instead of new Date().toISOString()
+      const iso = fechaISO || (fecha ? new Date(fecha).toISOString() : getTodayISO());
       const cleanNota = (nota || '').trim();
       
       const item = {

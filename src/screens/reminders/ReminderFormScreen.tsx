@@ -12,7 +12,8 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,7 +127,7 @@ const ReminderFormScreen = () => {
       setSelectedAdvances(reminder.advance);
       setRepeat(reminder.repeat);
       setNotes(cleanNotes);
-      setLinkedMovementId(reminder.linkedMovementId);
+      setLinkedMovementId(reminder.linkedMovementId || null);
       
       console.log('[ReminderForm] Recordatorio cargado para editar:', reminder.id);
     } catch (error) {
@@ -157,7 +158,7 @@ const ReminderFormScreen = () => {
     } else {
       // Recordatorio general sin vinculación
       const now = new Date();
-      const timeString = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const timeString = now.toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' });
       
       switch (formType) {
         case 'pago':
@@ -175,6 +176,8 @@ const ReminderFormScreen = () => {
 
   // Funciones para manejo exclusivo de pickers
   const openDatePicker = () => {
+    // Cerrar teclado antes de abrir picker
+    Keyboard.dismiss();
     // Cerrar time picker si está abierto
     setShowTimePicker(false);
     // Abrir date picker
@@ -182,6 +185,8 @@ const ReminderFormScreen = () => {
   };
 
   const openTimePicker = () => {
+    // Cerrar teclado antes de abrir picker
+    Keyboard.dismiss();
     // Cerrar date picker si está abierto
     setShowDatePicker(false);
     // Abrir time picker
@@ -194,9 +199,8 @@ const ReminderFormScreen = () => {
   };
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
-    // En Android, cerrar inmediatamente; en iOS mantener abierto si no hay cancelación
+    // Cerrar inmediatamente en Android, o si el usuario canceló
     const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
-    setShowDatePicker(!shouldClose);
     
     if (selectedDate && event.type !== 'dismissed') {
       // Preservar la hora actual, actualizar solo la fecha
@@ -208,18 +212,17 @@ const ReminderFormScreen = () => {
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
-      
-      // Cerrar picker después de seleccionar en Android
-      if (Platform.OS === 'android') {
-        setShowDatePicker(false);
-      }
+    }
+    
+    // Cerrar picker después de seleccionar
+    if (shouldClose) {
+      setShowDatePicker(false);
     }
   };
 
   const onChangeTime = (event: any, selectedTime?: Date) => {
-    // En Android, cerrar inmediatamente; en iOS mantener abierto si no hay cancelación
+    // Cerrar inmediatamente en Android, o si el usuario canceló
     const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
-    setShowTimePicker(!shouldClose);
     
     if (selectedTime && event.type !== 'dismissed') {
       // Preservar la fecha actual, actualizar solo la hora
@@ -232,11 +235,11 @@ const ReminderFormScreen = () => {
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
-      
-      // Cerrar picker después de seleccionar en Android
-      if (Platform.OS === 'android') {
-        setShowTimePicker(false);
-      }
+    }
+    
+    // Cerrar picker después de seleccionar
+    if (shouldClose) {
+      setShowTimePicker(false);
     }
   };
 
@@ -307,7 +310,7 @@ const ReminderFormScreen = () => {
 
       const reminderDraft: ReminderDraft = {
         title: title.trim(),
-        linkedMovementId,
+        linkedMovementId: linkedMovementId || undefined,
         type: formType,
         datetimeISO: when.toISOString(), // Mantenemos ISO para compatibilidad
         advance: selectedAdvances,
@@ -357,6 +360,7 @@ const ReminderFormScreen = () => {
     }
   };
 
+  // Helper to format date for display
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('es-UY', {
       weekday: 'long',
@@ -465,7 +469,7 @@ const ReminderFormScreen = () => {
                       }
                     }
                   }}
-                  disabled={disabled}
+                  disabled={disabled || false}
                 >
                   <Ionicons 
                     name={option.icon as any} 

@@ -6,6 +6,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { useMovimientos } from '../state/MovimientosContext';
 import { getEstadoColor } from '../utils/estadoColor';
 import { ReminderService } from '../modules/reminders';
+import { formatDate } from '../utils/format';
 
 export default function MovementDetail() {
   const route = useRoute();
@@ -151,18 +152,6 @@ export default function MovementDetail() {
     if (mode === 'create') return 'Crear Movimiento';
     if (mode === 'edit') return 'Editar Movimiento';
     return 'Detalle Movimiento';
-  };
-
-  const formatDate = (isoString) => {
-    try {
-      return new Date(isoString).toLocaleDateString('es-UY', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    } catch {
-      return 'Fecha inválida';
-    }
   };
 
   if (mode === 'edit' && !existingMovimiento) {

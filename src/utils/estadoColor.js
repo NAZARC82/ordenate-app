@@ -1,25 +1,27 @@
 // src/utils/estadoColor.js
-// Helper centralizado para colores de estados
+// Helper centralizado para colores de estados usando tema unificado
+import { COLORS } from '../theme/colors';
 
 /**
- * Mapa de colores para estados de movimientos
+ * Mapa de colores para estados de movimientos usando el tema centralizado
  * Mantiene la paleta consistente en toda la aplicación
  */
 const COLORES_ESTADO = {
-  urgente: '#FF4444',    // rojo
-  pronto: '#FFA500',     // naranja  
-  pendiente: '#FFD700',  // amarillo
-  pagado: '#4CAF50'      // verde
+  urgente: COLORS.export.urgent,     // rojo del tema
+  pronto: COLORS.export.pending,     // naranja del tema (pendiente y pronto son similares)
+  pendiente: COLORS.export.pending,  // naranja del tema
+  pagado: COLORS.export.paid         // verde del tema
 };
 
 /**
- * Colores claros para estados seleccionados (mejor contraste)
+ * Colores claros para estados seleccionados (versiones más claras del tema)
+ * Usando transparencia para mantener coherencia con el tema base
  */
 const COLORES_ESTADO_SELECTED = {
-  urgente: '#FFCCCC',    // rojo claro
-  pronto: '#FFE4B3',     // naranja claro
-  pendiente: '#FFF5CC',  // amarillo claro
-  pagado: '#E8F5E8'      // verde muy claro
+  urgente: COLORS.export.urgent + '33',     // rojo claro (20% opacidad)
+  pronto: COLORS.export.pending + '33',     // naranja claro (20% opacidad)
+  pendiente: COLORS.export.pending + '33',  // naranja claro (20% opacidad)
+  pagado: COLORS.export.paid + '33'         // verde claro (20% opacidad)
 };
 
 /**
@@ -34,15 +36,15 @@ export function getEstadoColor(estado, opts = {}) {
   
   if (!estado) {
     console.warn('getEstadoColor: estado no definido, usando color por defecto');
-    return '#CCCCCC';
+    return COLORS.text.secondary; // Color por defecto del tema
   }
   
   const colorMap = selected ? COLORES_ESTADO_SELECTED : COLORES_ESTADO;
-  const color = colorMap[estado];
+  const color = colorMap[estado.toLowerCase()];
   
   if (!color) {
     console.warn(`getEstadoColor: estado desconocido '${estado}', usando color por defecto`);
-    return '#CCCCCC';
+    return COLORS.text.secondary; // Color por defecto del tema
   }
   
   return color;

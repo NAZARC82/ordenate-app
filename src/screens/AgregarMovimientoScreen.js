@@ -1,23 +1,32 @@
 // src/screens/AgregarMovimientoScreen.js
-import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard, InputAccessoryView } from 'react-native';
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, Keyboard, InputAccessoryView, findNodeHandle } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MovimientosContext } from '../state/MovimientosContext';
 import ManualDateInput from '../components/Calendar/ManualDateInput';
 import { getEstadoColor } from '../utils/estadoColor';
+import { getTodayISO } from '../utils/date';
 
 export default function AgregarMovimientoScreen({ navigation, route }) {
   const { addMovimiento } = useContext(MovimientosContext);
+  const insets = useSafeAreaInsets();
   const initialTipo = route?.params?.tipo === 'cobro' ? 'cobro' : 'pago';
 
+  // Estados del formulario
   const [tipo, setTipo] = useState(initialTipo);       // 'pago' | 'cobro'
   const [monto, setMonto] = useState('');
   const [nota, setNota] = useState('');
   const [fecha, setFecha] = useState(() => {
-    // Fecha por defecto: hoy al mediodía UTC
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0).toISOString();
+    // Fecha por defecto: hoy sin offset de timezone
+    return getTodayISO();
   });
   const [estado, setEstado] = useState('pendiente');   // 'pendiente' | 'pronto' | 'urgente' | 'pagado'
+
+  // Estado del teclado - simplificado sin listeners dinámicos
+  const keyboardAwareRef = useRef(null);
+  const montoRef = useRef(null);
+  const notaRef = useRef(null);
 
   // Leer params opcionales para preselección
   useEffect(() => {
@@ -27,7 +36,26 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
     if (route?.params?.fechaISO) {
       setFecha(route.params.fechaISO);
     }
-  }, [route?.params]);
+  }, [route?.params?.estado, route?.params?.fechaISO]);
+
+  // Handler optimizado para auto-scroll del campo Notas
+  const onNotaFocus = useCallback(() => {
+    requestAnimationFrame(() => {
+      const handle = findNodeHandle(notaRef.current);
+      if (handle && keyboardAwareRef.current?.scrollToFocusedInput) {
+        keyboardAwareRef.current.scrollToFocusedInput(handle, 90);
+      }
+    });
+  }, []);
+
+  // Debounce para monto (evitar validaciones pesadas en cada keystroke)
+  const [montoTemp, setMontoTemp] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMonto(montoTemp);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [montoTemp]);
 
   const onGuardar = () => {
     const nMonto = Number(monto);
@@ -65,19 +93,19 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
         </InputAccessoryView>
       )}
       
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardContainer}>
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.container} 
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          onStartShouldSetResponder={() => {
-            Keyboard.dismiss();
-            return false;
-          }}
-        >
-        <Text style={styles.title}>Agregar movimiento</Text>
+      <KeyboardAwareScrollView
+        ref={keyboardAwareRef}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
+        extraScrollHeight={90}
+        keyboardOpeningTime={0}
+        enableAutomaticScroll
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          <Text style={styles.title}>Agregar movimiento</Text>
 
         <Text style={styles.label}>Tipo</Text>
         <View style={styles.segment}>
@@ -91,25 +119,34 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
 
         <Text style={styles.label}>Monto</Text>
         <TextInput
-          value={monto}
-          onChangeText={setMonto}
+          ref={montoRef}
+          value={montoTemp}
+          onChangeText={setMontoTemp}
           keyboardType="numeric"
           placeholder="$ 0"
           style={styles.input}
         />
 
         <Text style={styles.label}>Fecha</Text>
-        <ManualDateInput value={fecha} onChange={setFecha} placeholder="dd/mm/aaaa" />
+        <ManualDateInput 
+          value={fecha} 
+          onChange={setFecha} 
+          placeholder="dd/mm/aaaa"
+        />
 
         <Text style={styles.label}>Nota (opcional)</Text>
         <TextInput
+          ref={notaRef}
           value={nota}
           onChangeText={setNota}
           placeholder="Ej: Juan / Luz / Cliente A"
-          style={[styles.input, { height: 44 }]}
+          style={[styles.input, { minHeight: 140, paddingTop: 12 }]}
+          multiline
+          textAlignVertical="top"
           returnKeyType="done"
           enablesReturnKeyAutomatically={true}
           onSubmitEditing={Keyboard.dismiss}
+          onFocus={onNotaFocus}
           inputAccessoryViewID={Platform.OS === 'ios' ? 'notaAccessoryAgregarMovimiento' : undefined}
         />
 
@@ -123,10 +160,7 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
                 estado === est && styles.estadoChipActive,
                 { backgroundColor: getEstadoColor(est) }
               ]}
-              onPress={() => {
-                setEstado(est);
-                Keyboard.dismiss();
-              }}
+              onPress={() => setEstado(est)}
             >
               <Text style={[
                 styles.estadoText,
@@ -146,25 +180,23 @@ export default function AgregarMovimientoScreen({ navigation, route }) {
             <Text style={[styles.btnText, styles.btnPrimaryText]}>Guardar</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        
+        {/* Spacer final para scroll completo */}
+        <View style={{ height: 40 }} />
+        </View>
+      </KeyboardAwareScrollView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardContainer: { 
-    flex: 1 
-  },
   scrollView: {
     flex: 1,
     backgroundColor: '#FCFCF8'
   },
   container: { 
     padding: 16, 
-    backgroundColor: '#FCFCF8', 
-    flexGrow: 1,
-    paddingBottom: 40 // Espacio extra para asegurar scroll completo
+    backgroundColor: '#FCFCF8',
   },
   title: { fontSize: 20, color: '#4D3527', marginBottom: 12, fontWeight: '700' },
   label: { color: '#4D3527', marginTop: 12, marginBottom: 6 },

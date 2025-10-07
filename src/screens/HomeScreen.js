@@ -1,11 +1,11 @@
 import React, { useContext, useMemo, useState, useEffect } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 
 import { MovimientosContext } from '../state/MovimientosContext'
-import { fmtCurrency } from '../utils/fmt'
+import { formatCurrencyWithSymbol } from '../utils/format'
 import { ReminderService } from '../modules/reminders'
 
 export default function HomeScreen({ navigation }) {
@@ -17,6 +17,19 @@ export default function HomeScreen({ navigation }) {
   const totalDebes = toNum(totalesInicio?.debes);
   const totalTeDeben = toNum(totalesInicio?.teDeben);
   const balance = toNum(totalesInicio?.balance);
+
+  // Ejemplo: Listener para tabPress del MainTabs
+  useEffect(() => {
+    const parent = navigation.getParent('MainTabs');
+    if (!parent) return;
+    
+    const unsubscribe = parent.addListener('tabPress', (e) => {
+      // Ejemplo: scroll-to-top o refresh cuando se toca la tab de inicio
+      console.log('🏠 Tab Inicio presionada - podríamos hacer scroll-to-top aquí');
+    });
+    
+    return unsubscribe;
+  }, [navigation]);
 
   // Inicializar servicio de recordatorios y obtener badge count
   useEffect(() => {
@@ -50,15 +63,16 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <View style={[s.container, { paddingTop: Math.max(12, insets.top + 6) }]}>
-      {/* Header con título centrado */}
+    <SafeAreaView style={s.safeContainer}>
+      <View style={s.container}>
+        {/* Header con título centrado */}
       <View style={s.header}>
         {/* Acceso rápido deshabilitado: ya existe tab "Almanaque" abajo */}
         {/* <Ionicons
           name="calendar-outline"
           size={24}
           color="#1b1b1b"
-          onPress={() => navigation.navigate('Historial')}
+          onPress={() => navigation.navigate('HistoryTab', { screen: 'History', initial: false })}
         /> */}
         <Text style={s.title}>Ordénate</Text>
         <TouchableOpacity 
@@ -88,20 +102,20 @@ export default function HomeScreen({ navigation }) {
 
       {/* Resumen */}
       <View style={s.summary}>
-  <Line label="Debes" value={fmtCurrency(totalDebes)} />
-  <Line label="Te deben" value={fmtCurrency(totalTeDeben)} />
+  <Line label="Debes" value={formatCurrencyWithSymbol(totalDebes)} />
+  <Line label="Te deben" value={formatCurrencyWithSymbol(totalTeDeben)} />
 <Line 
   label="Balance" 
-  value={fmtCurrency(Number.isFinite(balance) ? balance : 0)} 
+  value={formatCurrencyWithSymbol(Number.isFinite(balance) ? balance : 0)} 
   color={balance >= 0 ? "green" : "red"} 
 />
 </View>
 
 
-      <BigBtn label="Agregar pago"  color="#DCE8FB" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "pago" })}/>
-      <BigBtn label="Agregar cobro" color="#E7F7E9" onPress={() => navigation.navigate("AgregarMovimiento", { tipo: "cobro" })}/>
+      <BigBtn label="Agregar pago"  color="#DCE8FB" onPress={() => navigation.navigate("AddMovement", { tipo: "pago" })}/>
+      <BigBtn label="Agregar cobro" color="#E7F7E9" onPress={() => navigation.navigate("AddMovement", { tipo: "cobro" })}/>
       <BigBtn label="Recordatorio" color="#FDEDC6" onPress={() => {
-        // Navegar al parent (RootStack) para acceder al modal ReminderForm
+        // Navegar al RootStack para acceder al modal ReminderForm
         const parent = navigation.getParent();
         if (parent) {
           parent.navigate('ReminderForm', { 
@@ -110,14 +124,11 @@ export default function HomeScreen({ navigation }) {
             linkedMovementId: null 
           });
         } else {
-          navigation.navigate('ReminderForm', { 
-            mode: 'create', 
-            type: 'general', 
-            linkedMovementId: null 
-          });
+          console.warn('No se pudo acceder al RootStack para navegación a ReminderForm');
         }
       }}/>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -136,7 +147,14 @@ const Line = ({ label, value, color }) => (
 );
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 18, backgroundColor: "#FCFCF8" },
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#FCFCF8',
+  },
+  container: { 
+    flex: 1, 
+    paddingHorizontal: 18,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -177,7 +195,7 @@ const s = StyleSheet.create({
   },
   search: { flex: 1, color: "#111", fontSize: 16 },
 
-  summary: { marginTop: 4, marginBottom: 14, gap: 6 },
+  summary: { marginTop: 4, marginBottom: 16, gap: 8 },
   line: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
   label: { fontSize: 18, color: "#333" },
   amount: { fontSize: 18, fontWeight: "700", color: "#111" },
@@ -186,9 +204,11 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginVertical: 8,
+    height: 68,
+    width: '100%',
   },
   plusCircle: {
     width: 34, height: 34, borderRadius: 17, backgroundColor: "#fff",

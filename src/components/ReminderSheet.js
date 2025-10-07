@@ -28,13 +28,14 @@ export default function ReminderSheet({
 
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
           <Text style={s.label}>Fecha</Text>
-          <DateTimePicker
+                    <DateTimePicker
             value={datePart}
             mode="date"
-            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-            locale="es-ES"
-            onChange={(_, d) => d && setDatePart(d)}
-            style={{ alignSelf: 'stretch' }}
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            locale="es-UY"
+            onChange={(e, date) => {
+              if (date) setDatePart(date);
+            }}
           />
           <Text style={[s.label, { marginTop: 14 }]}>Hora</Text>
           <DateTimePicker

@@ -8,18 +8,16 @@ const Stack = createNativeStackNavigator();
 
 export default function SettingsStack() {
   return (
-    <Stack.Navigator initialRouteName="SettingsMain">
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen
-        name="SettingsMain"
+        name="Settings"
         component={SettingsScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
         name="VistaPreviaExport"
         component={VistaPreviaExport}
-        options={{
-          headerShown: false,
-        }}
+        options={{ headerShown: true, title: 'Exportar' }}
       />
     </Stack.Navigator>
   );

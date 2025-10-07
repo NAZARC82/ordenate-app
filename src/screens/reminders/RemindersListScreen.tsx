@@ -233,7 +233,7 @@ const RemindersListScreen = () => {
     const diffMs = date.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     
-    const timeString = date.toLocaleTimeString('es-ES', {
+    const timeString = date.toLocaleTimeString('es-UY', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -245,10 +245,10 @@ const RemindersListScreen = () => {
     } else if (diffDays === -1) {
       return `Ayer ${timeString}`;
     } else if (diffDays > 0 && diffDays <= 7) {
-      const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
+      const dayName = date.toLocaleDateString('es-UY', { weekday: 'long' });
       return `${dayName} ${timeString}`;
     } else {
-      return date.toLocaleDateString('es-ES', {
+      return date.toLocaleDateString('es-UY', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',

@@ -4,56 +4,34 @@ import HomeScreen from '../screens/HomeScreen';
 import MovementDetail from '../screens/MovementDetail';
 import AgregarMovimientoScreen from '../screens/AgregarMovimientoScreen';
 import VistaPreviaExport from '../screens/VistaPreviaExport';
-import { ReminderFormScreen, RemindersListScreen } from '../screens/reminders';
 
 const Stack = createNativeStackNavigator();
 
 export default function HomeStack() {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen
-        name="HomeMain"
+        name="Home"
         component={HomeScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="MovementDetail"
-        component={MovementDetail}
-        options={{
-          title: 'Detalle del Movimiento',
-          headerStyle: { backgroundColor: '#FAFAF7' },
-          headerShadowVisible: false,
-        }}
-      />
-      <Stack.Screen
-        name="AgregarMovimiento"
+        name="AddMovement"
         component={AgregarMovimientoScreen}
         options={({ route }) => ({
+          headerShown: true,
           title: route?.params?.tipo === 'cobro' ? 'Nuevo Cobro' : 'Nuevo Pago',
-          headerStyle: { backgroundColor: '#FAFAF7' },
-          headerShadowVisible: false,
         })}
+      />
+      <Stack.Screen
+        name="MovementDetail"
+        component={MovementDetail}
+        options={{ headerShown: true, title: 'Detalle' }}
       />
       <Stack.Screen
         name="VistaPreviaExport"
         component={VistaPreviaExport}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="RemindersListScreen"
-        component={RemindersListScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="ReminderForm"
-        component={ReminderFormScreen}
-        options={{
-          headerShown: false,
-        }}
+        options={{ headerShown: true, title: 'Exportar' }}
       />
     </Stack.Navigator>
   );

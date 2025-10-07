@@ -1,5 +1,5 @@
 import React, { useMemo, useLayoutEffect, useState, useEffect } from 'react'
-import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity, Switch, ActivityIndicator, Platform, ActionSheetIOS, Modal } from 'react-native'
+import { View, Text, StyleSheet, FlatList, Alert, TouchableOpacity, Switch, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRoute, useNavigation } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
@@ -7,9 +7,10 @@ import { Ionicons } from '@expo/vector-icons'
 import { useMovimientos } from '../state/MovimientosContext'
 import { getDateString } from '../utils/date'
 import { getEstadoColor } from '../utils/estadoColor'
-import { exportPDFStyled, exportCSV } from '../utils/exporters'
+import { exportPDFStyled } from '../utils/pdfExport'
+import { exportCSV } from '../utils/csvExport'
 import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
-import ActionSheet from '../components/ActionSheet'
+import { formatDate } from '../utils/format'
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
@@ -22,14 +23,36 @@ export default function PantallaHistorial() {
   // Obtener filtro inicial de route.params
   const initialFilter = route.params?.initialFilter;
   const legacyFilter = route.params?.filter ?? null;
+  const activateSelection = route.params?.activateSelection ?? false;
+  
+  // Calcular contadores para los tabs en tiempo real
+  const contadores = useMemo(() => {
+    let base = [...movimientos];
+    
+    // Aplicar filtros legacy si existen
+    if (legacyFilter?.day) {
+      base = base.filter(m => getDateString(m.fechaISO) === legacyFilter.day);
+    }
+    
+    if (legacyFilter?.estado) {
+      if (legacyFilter.estado === 'no-pagado') {
+        base = base.filter(m => m.estado !== 'pagado');
+      } else {
+        base = base.filter(m => m.estado === legacyFilter.estado);
+      }
+    }
+    
+    return {
+      todos: base.length,
+      pagos: base.filter(m => m.tipo === 'pago').length,
+      cobros: base.filter(m => m.tipo === 'cobro').length
+    };
+  }, [movimientos, legacyFilter]);
   
   // Estados para el modo de selección
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [actionSheetVisible, setActionSheetVisible] = useState(false);
-  const [exportResult, setExportResult] = useState(null);
 
   // Manejar filtro inicial desde route.params
   useEffect(() => {
@@ -46,6 +69,15 @@ export default function PantallaHistorial() {
       navigation.setParams({ initialFilter: undefined });
     }
   }, [initialFilter, navigation]);
+
+  // Activar modo selección desde Ajustes
+  useEffect(() => {
+    if (activateSelection && movimientos.length > 0) {
+      setSelectionMode(true);
+      // Limpiar el param para evitar que se ejecute de nuevo
+      navigation.setParams({ activateSelection: undefined });
+    }
+  }, [activateSelection, navigation, movimientos.length]);
 
   useLayoutEffect(() => {
     // Título dinámico según el activeTab
@@ -133,19 +165,6 @@ export default function PantallaHistorial() {
 
   // Generar subtítulo
   const subtitle = buildSubtitle(subtitleParams);
-
-  const formatDate = (fechaISO) => {
-    try {
-      return new Date(fechaISO).toLocaleDateString('es-UY', {
-        day: '2-digit',
-        month: '2-digit', 
-        year: 'numeric'
-      });
-    } catch (error) {
-      console.warn('Error formateando fecha:', fechaISO, error);
-      return 'Fecha inválida';
-    }
-  };
 
   // Componente EmptyState dinámico
   const EmptyState = ({ activeTab }) => {
@@ -242,69 +261,13 @@ export default function PantallaHistorial() {
         }
       });
     } else {
-      navigation.navigate('ReminderForm', {
-        mode: 'create',
-        linkedMovementId: item.id,
-        type: item.tipo === 'pago' ? 'pago' : 'cobro',
-        movementData: {
-          tipo: item.tipo,
-          monto: item.monto,
-          nota: item.nota,
-          fechaISO: item.fechaISO
-        }
-      });
+      console.warn('No se pudo acceder al RootStack para navegación a ReminderForm desde movimiento');
     }
   };
 
-  // Manejar cierre del ActionSheet
-  const handleActionSheetClose = () => {
-    setActionSheetVisible(false);
-    setExportResult(null);
-    // Limpiar selección después de completar el ActionSheet
+  // Manejar limpieza de selección después de exportar
+  const clearSelection = () => {
     setSelectedItems(new Set());
-  };
-
-  // Exportar items seleccionados
-  const handleExportarSeleccionados = async () => {
-    if (selectedItems.size === 0) {
-      Alert.alert(
-        'Sin selección',
-        'Debe seleccionar al menos un movimiento para exportar.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      setIsExporting(true);
-
-      // Filtrar movimientos seleccionados
-      const movimientosSeleccionados = sortedMovimientos.filter(mov => 
-        selectedItems.has(mov.id)
-      );
-
-      const result = await exportarPDFSeleccion(movimientosSeleccionados, {
-        titulo: 'Movimientos Seleccionados',
-        contexto: 'seleccion'
-      });
-
-      if (result.success) {
-        setExportResult(result);
-        setActionSheetVisible(true);
-      } else {
-        Alert.alert('Error', 'No se pudo exportar el archivo PDF.');
-      }
-
-    } catch (error) {
-      console.error('Error al exportar seleccionados:', error);
-      Alert.alert(
-        'Error',
-        'Hubo un problema al generar el PDF. Por favor, inténtalo de nuevo.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   // Exportar PDF usando nueva función
@@ -345,6 +308,17 @@ export default function PantallaHistorial() {
         dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
       }
       
+      // Mapear datos al formato esperado
+      const movimientosParaExport = itemsToExport.map(mov => ({
+        id: mov.id,
+        tipo: mov.tipo,
+        titulo: mov.titulo || '',
+        nota: mov.nota || '',
+        monto: mov.monto,
+        fechaISO: mov.fechaISO,
+        estado: mov.estado || 'PENDIENTE'
+      }));
+      
       const filename = buildExportName({
         activeTab,
         dateYMD,
@@ -354,7 +328,7 @@ export default function PantallaHistorial() {
         ext: 'pdf'
       });
       
-      await exportPDF(itemsToExport, filename);
+      await exportPDFStyled(movimientosParaExport, filename);
       
       // Limpiar selección si había
       if (selectedItems.size > 0) {
@@ -407,6 +381,17 @@ export default function PantallaHistorial() {
         dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
       }
       
+      // Mapear datos al formato esperado
+      const movimientosParaExport = itemsToExport.map(mov => ({
+        id: mov.id,
+        tipo: mov.tipo,
+        titulo: mov.titulo || '',
+        nota: mov.nota || '',
+        monto: mov.monto,
+        fechaISO: mov.fechaISO,
+        estado: mov.estado || 'PENDIENTE'
+      }));
+      
       const filename = buildExportName({
         activeTab,
         dateYMD,
@@ -416,7 +401,7 @@ export default function PantallaHistorial() {
         ext: 'csv'
       });
       
-      await exportCSV(itemsToExport, filename);
+      await exportCSV(movimientosParaExport, filename);
       
       // Limpiar selección si había
       if (selectedItems.size > 0) {
@@ -431,122 +416,9 @@ export default function PantallaHistorial() {
     }
   };
 
-  // Función para abrir opciones de exportación
-  const openExportOptions = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['PDF', 'CSV', 'Cancelar'],
-          cancelButtonIndex: 2,
-          title: 'Seleccionar formato de exportación'
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) {
-            onExport('pdf');
-          } else if (buttonIndex === 1) {
-            onExport('csv');
-          }
-        }
-      );
-    } else {
-      // Android: usar modal
-      setShowExportModal(true);
-    }
-  };
 
-  // Función unificada de exportación
-  const onExport = async (kind) => {
-    try {
-      setIsExporting(true);
-      setShowExportModal(false); // Cerrar modal de Android si está abierto
 
-      // Determinar qué exportar: seleccionados o todos los visibles
-      const itemsToExport = selectedItems.size > 0 
-        ? sortedMovimientos.filter(mov => selectedItems.has(mov.id))
-        : sortedMovimientos;
 
-      if (itemsToExport.length === 0) {
-        Alert.alert('Sin datos', 'No hay movimientos para exportar.');
-        return;
-      }
-
-      // Mapear datos al formato esperado por las nuevas funciones de export
-      const movimientosParaExport = itemsToExport.map(mov => ({
-        id: mov.id,
-        tipo: mov.tipo,
-        titulo: mov.titulo || '',
-        nota: mov.nota || '',
-        monto: mov.monto,
-        fechaISO: mov.fechaISO,
-        estado: mov.estado || 'PENDIENTE'
-      }));
-
-      // Construir nombre de archivo contextual y metadatos
-      const selectedCount = selectedItems.size > 0 ? selectedItems.size : undefined;
-      
-      // Detectar si hay filtro de día específico
-      const dayFilter = legacyFilter?.day;
-      let dateYMD, rangeStartYMD, rangeEndYMD;
-      let fechaTitulo, rango;
-      
-      if (dayFilter) {
-        // Filtro por día específico
-        dateYMD = dayFilter;
-        fechaTitulo = fmtYMD(dayFilter);
-      } else if (itemsToExport.length > 1 && !isSingleDay(itemsToExport)) {
-        // Múltiples días - usar rango
-        const range = getMovementsDateRange(itemsToExport);
-        rangeStartYMD = range.startYMD;
-        rangeEndYMD = range.endYMD;
-        rango = `${fmtYMD(range.startYMD)} a ${fmtYMD(range.endYMD)}`;
-      } else if (itemsToExport.length === 1) {
-        // Un solo movimiento - usar su fecha
-        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
-        fechaTitulo = fmtYMD(dateYMD);
-      } else if (isSingleDay(itemsToExport)) {
-        // Todos del mismo día
-        dateYMD = formatDateForFilename(itemsToExport[0].fechaISO);
-        fechaTitulo = fmtYMD(dateYMD);
-      }
-      
-      const filename = buildExportName({
-        activeTab,
-        dateYMD,
-        rangeStartYMD,
-        rangeEndYMD,
-        selectedCount,
-        ext: kind
-      });
-      
-      // Preparar metadatos para PDF estilizado
-      const meta = {
-        fechaTitulo,
-        hora: new Date().toLocaleTimeString('es-UY', {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        rango
-      };
-      
-      // Exportar según el tipo
-      if (kind === 'pdf') {
-        await exportPDFStyled(movimientosParaExport, filename, meta);
-      } else if (kind === 'csv') {
-        await exportCSV(movimientosParaExport, filename);
-      }
-      
-      // Limpiar selección si había
-      if (selectedItems.size > 0) {
-        setSelectedItems(new Set());
-      }
-      
-    } catch (error) {
-      console.error(`Error exportando ${kind}:`, error);
-      Alert.alert('Error al exportar', `No se pudo exportar el archivo ${kind.toUpperCase()}`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   const renderMovementItem = ({ item }) => {
     // Validación defensiva
@@ -558,70 +430,76 @@ export default function PantallaHistorial() {
     const isSelected = selectedItems.has(item.id);
     
     return (
-      <TouchableOpacity
-        style={[
-          styles.movementItem,
-          selectionMode && styles.movementItemSelectable,
-          isSelected && styles.movementItemSelected
-        ]}
-        onPress={selectionMode ? () => toggleItemSelection(item.id) : undefined}
-        activeOpacity={selectionMode ? 0.7 : 1}
-      >
-        {selectionMode && (
-          <View style={styles.checkboxContainer}>
-            <Ionicons 
-              name={isSelected ? 'checkbox' : 'checkbox-outline'} 
-              size={24} 
-              color={isSelected ? '#3E7D75' : '#ccc'} 
-            />
-          </View>
-        )}
-        
-        <View style={[styles.movementContent, selectionMode && styles.movementContentWithCheckbox]}>
-          <View style={styles.movementHeader}>
-            <View style={styles.movementLeft}>
-              <Text style={styles.movementTipo}>
-                {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
-              </Text>
-              <Text style={styles.movementDate}>
-                {formatDate(item.fechaISO)}
-              </Text>
+      <View style={[
+        styles.cardOuter,
+        selectionMode && styles.movementItemSelectable,
+        isSelected && styles.movementItemSelected
+      ]}>
+        <TouchableOpacity
+          style={[
+            styles.cardInner,
+            isSelected && { backgroundColor: '#f0f7f6' }
+          ]}
+          onPress={selectionMode ? () => toggleItemSelection(item.id) : undefined}
+          activeOpacity={selectionMode ? 0.7 : 1}
+        >
+          {selectionMode && (
+            <View style={styles.checkboxContainer}>
+              <Ionicons 
+                name={isSelected ? 'checkbox' : 'checkbox-outline'} 
+                size={24} 
+                color={isSelected ? '#3E7D75' : '#ccc'} 
+              />
             </View>
-            <View style={styles.movementRight}>
-              <Text style={[
-                styles.movementMonto,
-                { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
-              ]}>
-                {item.tipo === 'pago' ? '-' : '+'}${typeof item.monto === 'number' ? item.monto.toLocaleString('es-UY') : (item.monto || '0')}
-              </Text>
-              <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado || 'pendiente') }]}>
-                <Text style={styles.estadoText}>{item.estado || 'pendiente'}</Text>
+          )}
+          
+          <View style={[styles.movementContent, selectionMode && styles.movementContentWithCheckbox]}>
+            <View style={styles.movementHeader}>
+              <View style={styles.movementLeft}>
+                <Text style={styles.movementTipo}>
+                  {item.tipo === 'pago' ? 'Pago' : 'Cobro'}
+                </Text>
+                <Text style={styles.movementDate}>
+                  {formatDate(item.fechaISO)}
+                </Text>
+              </View>
+              <View style={styles.movementRight}>
+                <Text style={[
+                  styles.movementMonto,
+                  { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
+                ]}>
+                  {item.tipo === 'pago' ? '-' : '+'}${typeof item.monto === 'number' ? item.monto.toLocaleString('es-UY') : (item.monto || '0')}
+                </Text>
+                <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado || 'pendiente') }]}>
+                  <Text style={styles.estadoText}>{item.estado || 'pendiente'}</Text>
+                </View>
               </View>
             </View>
-          </View>
-          {item.nota && (
-            <Text style={styles.movementNota}>{item.nota}</Text>
-          )}
-          {!selectionMode && (
-            <View style={styles.actionsRow}>
-              <TouchableOpacity onPress={() => handleEditar(item)}>
-                <Text style={styles.actionLink}>Editar</Text>
-              </TouchableOpacity>
-              {item.estado !== 'pagado' && (
-                <TouchableOpacity onPress={() => handleMarcarPagado(item)}>
-                  <Text style={styles.actionLink}>Marcar pagado</Text>
+            {item.nota && (
+              <Text style={styles.movementNota} numberOfLines={2}>{item.nota}</Text>
+            )}
+            {!selectionMode && (
+              <View style={styles.actionsRow}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleEditar(item)}>
+                  <Text style={styles.actionLink} allowFontScaling={false}>Editar</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => handleCrearRecordatorio(item)}>
-                <Text style={[styles.actionLink, { color: '#3498DB' }]}>🔔 Recordatorio</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleBorrar(item)}>
-                <Text style={[styles.actionLink, { color: '#c62828' }]}>Borrar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
+                {item.estado !== 'pagado' && (
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleMarcarPagado(item)}>
+                    <Text style={styles.actionLink} allowFontScaling={false}>Marcar pagado</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={[styles.actionBtn, styles.iconLink]} onPress={() => handleCrearRecordatorio(item)}>
+                  <Text style={[styles.actionLink, { color: '#3498DB' }]} allowFontScaling={false}>🔔</Text>
+                  <Text style={[styles.actionLink, { color: '#3498DB' }]} allowFontScaling={false}>Recordatorio</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleBorrar(item)}>
+                  <Text style={[styles.actionLink, { color: '#c62828' }]} allowFontScaling={false}>Borrar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -645,6 +523,12 @@ export default function PantallaHistorial() {
             ]}>
               Todos
             </Text>
+            <Text style={[
+              styles.filterButtonCount,
+              activeTab === 'todos' && styles.filterButtonCountActive
+            ]}>
+              {contadores.todos}
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -659,6 +543,12 @@ export default function PantallaHistorial() {
               activeTab === 'pagos' && styles.filterButtonTextActive
             ]}>
               Pagos
+            </Text>
+            <Text style={[
+              styles.filterButtonCount,
+              activeTab === 'pagos' && styles.filterButtonCountActive
+            ]}>
+              {contadores.pagos}
             </Text>
           </TouchableOpacity>
           
@@ -675,6 +565,12 @@ export default function PantallaHistorial() {
             ]}>
               Cobros
             </Text>
+            <Text style={[
+              styles.filterButtonCount,
+              activeTab === 'cobros' && styles.filterButtonCountActive
+            ]}>
+              {contadores.cobros}
+            </Text>
           </TouchableOpacity>
         </View>
         
@@ -686,7 +582,7 @@ export default function PantallaHistorial() {
             if (parent) {
               parent.navigate('ReminderForm', { mode: 'create', type: 'general', linkedMovementId: null });
             } else {
-              navigation.navigate('ReminderForm', { mode: 'create', type: 'general', linkedMovementId: null });
+              console.warn('No se pudo acceder al RootStack para navegación a ReminderForm general');
             }
           }}
         >
@@ -713,7 +609,7 @@ export default function PantallaHistorial() {
         <Text style={{ color: '#6B5A4B', fontSize: 14 }}>{subtitle}</Text>
       </View>
       
-      {/* FlatList robusto con EmptyState */}
+      {/* FlatList robusto con EmptyState y optimizaciones */}
       <View style={styles.listWrapper}>
         <FlatList
           data={sortedMovimientos}
@@ -731,6 +627,12 @@ export default function PantallaHistorial() {
             selectionMode && selectedItems.size > 0 && { paddingBottom: 100 }
           ]}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={100}
+          initialNumToRender={8}
+          windowSize={5}
+          getItemLayout={undefined} // Dejamos que RN calcule automáticamente para mayor flexibilidad
           ListHeaderComponent={() => (
             sortedMovimientos.length > 0 ? (
               <View style={styles.listHeader}>
@@ -747,24 +649,12 @@ export default function PantallaHistorial() {
         />
       </View>
 
-      {/* ActionsBar para exportación cuando está en modo selección */}
+      {/* ActionsBar con botones directos PDF, CSV y Cancelar */}
       {selectionMode && (
         <View style={styles.actionsBar}>
           <TouchableOpacity 
-            style={[styles.actionButton, styles.exportButton, isExporting && styles.actionButtonDisabled]}
-            onPress={openExportOptions}
-            disabled={isExporting}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="share" size={20} color="white" />
-            <Text style={styles.actionButtonText}>
-              Exportar
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
             style={[styles.actionButton, styles.pdfButton, isExporting && styles.actionButtonDisabled]}
-            onPress={() => onExport('pdf')}
+            onPress={handleExportPDF}
             disabled={isExporting}
             activeOpacity={0.8}
           >
@@ -780,7 +670,7 @@ export default function PantallaHistorial() {
 
           <TouchableOpacity 
             style={[styles.actionButton, styles.csvButton, isExporting && styles.actionButtonDisabled]}
-            onPress={() => onExport('csv')}
+            onPress={handleExportCSV}
             disabled={isExporting}
             activeOpacity={0.8}
           >
@@ -806,57 +696,6 @@ export default function PantallaHistorial() {
           </TouchableOpacity>
         </View>
       )}
-
-      {/* ActionSheet para compartir */}
-      <ActionSheet
-        visible={actionSheetVisible}
-        onClose={handleActionSheetClose}
-        fileUri={exportResult?.fileUri}
-        fileName={exportResult?.fileName}
-        mimeType={exportResult?.mimeType}
-      />
-
-      {/* Modal de exportación para Android */}
-      {Platform.OS === 'android' && (
-        <Modal
-          visible={showExportModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowExportModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Seleccionar formato de exportación</Text>
-              
-              <TouchableOpacity 
-                style={styles.modalButton}
-                onPress={() => onExport('pdf')}
-                disabled={isExporting}
-              >
-                <Ionicons name="document-text" size={24} color="#3E7D75" />
-                <Text style={styles.modalButtonText}>PDF</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.modalButton}
-                onPress={() => onExport('csv')}
-                disabled={isExporting}
-              >
-                <Ionicons name="grid" size={24} color="#3E7D75" />
-                <Text style={styles.modalButtonText}>CSV</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalCancelButton]}
-                onPress={() => setShowExportModal(false)}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-                <Text style={[styles.modalButtonText, { color: '#666' }]}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
     </SafeAreaView>
   );
 }
@@ -866,7 +705,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCF8',
     paddingHorizontal: 16,
-    paddingTop: 8,
   },
   headerContainer: {
     marginBottom: 16,
@@ -899,6 +737,15 @@ const styles = StyleSheet.create({
   },
   filterButtonTextActive: {
     color: '#FFFFFF',
+  },
+  filterButtonCount: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#999',
+    marginTop: 2,
+  },
+  filterButtonCountActive: {
+    color: '#E8F5F3',
   },
   generalReminderButton: {
     flexDirection: 'row',
@@ -935,6 +782,42 @@ const styles = StyleSheet.create({
     color: '#3E7D75',
     fontWeight: '600',
   },
+  listWrapper: {
+    flex: 1,
+  },
+  flatListContent: {
+    // Definido dinámicamente en el componente
+  },
+  listHeader: {
+    paddingBottom: 8,
+  },
+  itemSeparator: {
+    height: 8,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   listContainer: {
     flex: 1,
   },
@@ -959,24 +842,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  movementItem: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+  cardOuter: {
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+    // sombra iOS
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    // sombra Android
+    elevation: 3,
+    marginHorizontal: 12,
+    marginBottom: 12,
+  },
+  cardInner: {
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',            // <- recorta hijos, evita que "Recordatorio" se salga
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   movementItemSelectable: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    // Aplicado al cardOuter
   },
   movementItemSelected: {
-    borderColor: '#3E7D75',
-    backgroundColor: '#f0f7f6',
+    // Aplicado al cardOuter - aplicar efectos al cardInner
+    shadowColor: '#3E7D75',
+    shadowOpacity: 0.15,
   },
   checkboxContainer: {
     marginRight: 12,
@@ -1030,12 +925,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#444',
     lineHeight: 18,
+    flexShrink: 1,
   },
   // Eliminado - ya no se usa separator individual
   actionsRow: {
-    marginTop: 10,
     flexDirection: 'row',
-    gap: 16,
+    flexWrap: 'wrap',              // <- permite pasar a 2da línea
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 8,
+    paddingRight: 8,               // <- aire a la derecha
+    paddingBottom: 4,
+  },
+  actionBtn: { 
+    marginRight: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  iconLink: { 
+    gap: 6 
   },
   actionLink: {
     fontSize: 12,

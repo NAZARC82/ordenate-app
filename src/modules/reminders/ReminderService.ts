@@ -19,7 +19,7 @@ import * as ReminderStorage from './storage';
  */
 
 // Configurar el handler de notificaciones
-Notifications.setNotificationHandler({
+(Notifications as any).setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
@@ -74,11 +74,11 @@ class ReminderServiceClass {
         return false;
       }
 
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } = await (Notifications as any).getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await (Notifications as any).requestPermissionsAsync();
         finalStatus = status;
       }
 
@@ -89,10 +89,10 @@ class ReminderServiceClass {
 
       // Configurar canal de notificación en Android
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('reminder-channel', {
+        await (Notifications as any).setNotificationChannelAsync('reminder-channel', {
           name: 'Recordatorios',
           description: 'Notificaciones de recordatorios de pagos y cobros',
-          importance: Notifications.AndroidImportance.HIGH,
+          importance: (Notifications as any).AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#3498DB',
           sound: 'default',
@@ -112,7 +112,7 @@ class ReminderServiceClass {
    */
   private async setupNotificationCategories(): Promise<void> {
     try {
-      await Notifications.setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.PAYMENT_REMINDER, [
+      await (Notifications as any).setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.PAYMENT_REMINDER, [
         {
           identifier: NOTIFICATION_ACTIONS.COMPLETE,
           buttonTitle: '✅ Completar',
@@ -125,7 +125,7 @@ class ReminderServiceClass {
         }
       ]);
 
-      await Notifications.setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.COLLECTION_REMINDER, [
+      await (Notifications as any).setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.COLLECTION_REMINDER, [
         {
           identifier: NOTIFICATION_ACTIONS.COMPLETE,
           buttonTitle: '✅ Completar',
@@ -138,7 +138,7 @@ class ReminderServiceClass {
         }
       ]);
 
-      await Notifications.setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.GENERAL_REMINDER, [
+      await (Notifications as any).setNotificationCategoryAsync(NOTIFICATION_CATEGORIES.GENERAL_REMINDER, [
         {
           identifier: NOTIFICATION_ACTIONS.COMPLETE,
           buttonTitle: '✅ Completar',
@@ -162,7 +162,7 @@ class ReminderServiceClass {
    */
   private setupNotificationListeners(): void {
     // Listener para acciones de notificación
-    Notifications.addNotificationResponseReceivedListener(async (response) => {
+    (Notifications as any).addNotificationResponseReceivedListener(async (response: any) => {
       try {
         console.log('[ReminderService] Acción de notificación recibida:', response.actionIdentifier);
         
@@ -185,7 +185,7 @@ class ReminderServiceClass {
           case NOTIFICATION_ACTIONS.SNOOZE_TOMORROW:
             await this.snoozeTomorrowMorning(reminderId);
             break;
-          case Notifications.DEFAULT_ACTION_IDENTIFIER:
+          case (Notifications as any).DEFAULT_ACTION_IDENTIFIER:
             // Abrir app (comportamiento por defecto)
             console.log('[ReminderService] Abriendo app por notificación');
             break;
@@ -196,7 +196,7 @@ class ReminderServiceClass {
     });
 
     // Listener para notificaciones recibidas mientras la app está activa
-    Notifications.addNotificationReceivedListener((notification) => {
+    (Notifications as any).addNotificationReceivedListener((notification: any) => {
       console.log('[ReminderService] Notificación recibida:', notification.request.identifier);
     });
   }
@@ -377,7 +377,7 @@ class ReminderServiceClass {
       const title = this.getNotificationTitle(reminder.type, type);
       const body = this.getNotificationBody(reminder, triggerDate, type);
 
-      await Notifications.scheduleNotificationAsync({
+      await (Notifications as any).scheduleNotificationAsync({
         identifier,
         content: {
           title,
@@ -392,7 +392,7 @@ class ReminderServiceClass {
         },
         trigger: {
           date: triggerDate,
-        } as Notifications.DateTriggerInput,
+        } as any,
       });
 
       console.log(`[ReminderService] Notificación programada: ${identifier} para ${triggerDate.toISOString()}`);
@@ -491,11 +491,11 @@ class ReminderServiceClass {
    * Generar cuerpo de notificación
    */
   private getNotificationBody(reminder: Reminder, triggerDate: Date, type: string): string {
-    const timeString = triggerDate.toLocaleTimeString('es-ES', {
+    const timeString = triggerDate.toLocaleTimeString('es-UY', {
       hour: '2-digit',
       minute: '2-digit'
     });
-    const dateString = triggerDate.toLocaleDateString('es-ES');
+    const dateString = triggerDate.toLocaleDateString('es-UY');
     
     let body = '';
     
@@ -564,7 +564,7 @@ class ReminderServiceClass {
 
       // Cancelar una por una
       for (const id of notificationIds) {
-        await Notifications.cancelScheduledNotificationAsync(id);
+        await (Notifications as any).cancelScheduledNotificationAsync(id);
       }
       console.log(`[ReminderService] ${notificationIds.length} notificaciones canceladas`);
     } catch (error) {
@@ -721,9 +721,9 @@ class ReminderServiceClass {
       console.log('[ReminderService] Iniciando reconciliación...');
       
       const reminders = await ReminderStorage.getReminders();
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      const scheduledNotifications = await (Notifications as any).getAllScheduledNotificationsAsync();
       
-      const scheduledIds = new Set(scheduledNotifications.map(n => n.identifier));
+      const scheduledIds = new Set(scheduledNotifications.map((n: any) => n.identifier));
 
       for (const reminder of reminders) {
         if (reminder.status !== 'programado') continue;

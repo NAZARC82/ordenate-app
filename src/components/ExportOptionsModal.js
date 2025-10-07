@@ -14,7 +14,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
-import { exportarCSV, exportarPDFSeleccion, generarVistaPreviaHTML } from '../utils/pdfExport';
+import { exportarPDFSeleccion, generarVistaPreviaHTML } from '../utils/pdfExport';
+import { exportCSV } from '../utils/csvExport';
 import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
 
@@ -357,7 +358,7 @@ const ExportOptionsModal = ({
       await saveOptions();
       
       // Exportar CSV usando la función importada
-      const result = await exportarCSV(movsFiltrados, {
+      const result = await exportCSV(movsFiltrados, {
         columnas: columnasSeleccionadas,
         contexto: 'filtrado',
         ...contexto

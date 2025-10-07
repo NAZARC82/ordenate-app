@@ -163,7 +163,10 @@ export default function PantallaAlmanaque() {
 
   const handleVerPendientes = useCallback(() => {
     navigation.navigate('Historial', { 
-      filter: { estado: 'no-pagado', day: selectedDay } 
+      screen: 'HistoryMain',
+      params: {
+        filter: { estado: 'no-pagado', day: selectedDay } 
+      }
     });
   }, [navigation, selectedDay]);
 
@@ -289,7 +292,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFCF8',
     paddingHorizontal: 16,
-    paddingTop: 8,
   },
   title: { 
     fontSize: 24, 

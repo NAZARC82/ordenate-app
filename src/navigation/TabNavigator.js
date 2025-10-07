@@ -13,6 +13,7 @@ const Tab = createBottomTabNavigator();
 export default function TabNavigator() {
   return (
     <Tab.Navigator
+      id="MainTabs"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: '#3E7D75',
@@ -36,16 +37,28 @@ export default function TabNavigator() {
           fontSize: 12,
         },
         tabBarIcon: ({ color, size }) => {
-          const icons = { Inicio: 'home', Almanaque: 'calendar', Historial: 'time', Ajustes: 'settings' };
-          const name = icons[route.name] || 'apps';
-          return <Ionicons name={name} size={26} color={color} />; // un toque más grandes
+          let iconName;
+          
+          if (route.name === 'HomeTab') {
+            iconName = 'home-outline';
+          } else if (route.name === 'CalendarTab') {
+            iconName = 'calendar-outline';
+          } else if (route.name === 'HistoryTab') {
+            iconName = 'list-outline';
+          } else if (route.name === 'SettingsTab') {
+            iconName = 'settings-outline';
+          } else {
+            iconName = 'apps-outline';
+          }
+          
+          return <Ionicons name={iconName} size={24} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Inicio" component={HomeStack} />
-      <Tab.Screen name="Almanaque" component={CalendarStack} />
-      <Tab.Screen name="Historial" component={HistoryStack} />
-      <Tab.Screen name="Ajustes" component={SettingsStack} />
+      <Tab.Screen name="HomeTab" component={HomeStack} options={{ title: 'Inicio' }} />
+      <Tab.Screen name="CalendarTab" component={CalendarStack} options={{ title: 'Almanaque' }} />
+      <Tab.Screen name="HistoryTab" component={HistoryStack} options={{ title: 'Historial' }} />
+      <Tab.Screen name="SettingsTab" component={SettingsStack} options={{ title: 'Ajustes' }} />
     </Tab.Navigator>
   );
 }
