@@ -28,11 +28,11 @@ export default function ReminderSheet({
 
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
           <Text style={s.label}>Fecha</Text>
-                    <DateTimePicker
+          <DateTimePicker
             value={datePart}
             mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            locale="es-UY"
+            display={Platform.OS === 'ios' ? 'compact' : 'default'}
+            locale="es"
             onChange={(e, date) => {
               if (date) setDatePart(date);
             }}
@@ -41,10 +41,11 @@ export default function ReminderSheet({
           <DateTimePicker
             value={timePart}
             mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            display={Platform.OS === 'ios' ? 'compact' : 'default'}
+            locale="es"
             is24Hour
             onChange={(_, d) => d && setTimePart(d)}
-            style={{ alignSelf: 'stretch' }}
+            style={{ alignSelf: 'stretch', minHeight: 50 }}
           />
         </ScrollView>
 

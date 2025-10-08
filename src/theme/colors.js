@@ -29,17 +29,22 @@ export const COLORS = {
     secondary: '#666666',
   },
 
+  // COLORES CORPORATIVOS - Identidad de marca
+  azul: '#50616D',
+  violeta: '#6A5ACD',
+  violetaClaro: '#E8E5FF',
+
   // Export (PDF) – gradientes fijos que pediste para reporte
-  violetStart: '#667EEA',
+  violetStart: '#6A5ACD', // Usando violeta corporativo
   violetEnd:   '#764BA2',
-  blueStart:   '#3498DB',
+  blueStart:   '#50616D',  // Usando azul corporativo
   blueEnd:     '#2980B9',
 
   // Export colors para PDF
   export: {
-    violetStart: '#667EEA',
+    violetStart: '#6A5ACD', // Violeta corporativo
     violetEnd:   '#764BA2',
-    blueStart:   '#3498DB',
+    blueStart:   '#50616D',  // Azul corporativo
     blueEnd:     '#2980B9',
     positive: '#27AE60', // cobro (+)
     negative: '#E74C3C', // pago (−)

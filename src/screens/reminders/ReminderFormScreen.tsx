@@ -1,6 +1,6 @@
 // src/screens/reminders/ReminderFormScreen.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   Modal,
   Platform,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  KeyboardAvoidingView
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,11 +49,19 @@ const ReminderFormScreen = () => {
   const params = (route.params as ReminderFormScreenProps) || {};
   const { mode = 'create', type = 'general', linkedMovementId: paramLinkedMovementId = null, reminderId, movementData } = params;
 
+  // Ref para el ScrollView
+  const scrollViewRef = useRef<ScrollView>(null);
+
   // Estados del formulario
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
   const [formType, setFormType] = useState(type);
-  const [when, setWhen] = useState(new Date(Date.now() + 2 * 60 * 60 * 1000)); // +2 horas por defecto
+  const [when, setWhen] = useState(() => {
+    // Asegurar valor válido: +2 horas mínimo desde ahora
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    return futureTime;
+  });
   const [repeat, setRepeat] = useState('nunca');
   const [selectedAdvances, setSelectedAdvances] = useState([60]); // 1 hora por defecto
   const [notes, setNotes] = useState('');
@@ -176,21 +185,27 @@ const ReminderFormScreen = () => {
 
   // Funciones para manejo exclusivo de pickers
   const openDatePicker = () => {
+    console.log('[ReminderForm] Abriendo DatePicker. Current when:', when);
+    console.log('[ReminderForm] Platform:', Platform.OS, 'Version:', Platform.Version);
     // Cerrar teclado antes de abrir picker
     Keyboard.dismiss();
     // Cerrar time picker si está abierto
     setShowTimePicker(false);
     // Abrir date picker
     setShowDatePicker(true);
+    console.log('[ReminderForm] DatePicker should be visible now');
   };
 
   const openTimePicker = () => {
+    console.log('[ReminderForm] Abriendo TimePicker. Current when:', when);
+    console.log('[ReminderForm] Platform:', Platform.OS, 'Version:', Platform.Version);
     // Cerrar teclado antes de abrir picker
     Keyboard.dismiss();
     // Cerrar date picker si está abierto
     setShowDatePicker(false);
     // Abrir time picker
     setShowTimePicker(true);
+    console.log('[ReminderForm] TimePicker should be visible now');
   };
 
   const closePickers = () => {
@@ -199,6 +214,7 @@ const ReminderFormScreen = () => {
   };
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
+    console.log('[ReminderForm] onChangeDate called. Event:', event.type, 'Date:', selectedDate);
     // Cerrar inmediatamente en Android, o si el usuario canceló
     const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
     
@@ -209,6 +225,7 @@ const ReminderFormScreen = () => {
       newWhen.setMonth(selectedDate.getMonth());
       newWhen.setDate(selectedDate.getDate());
       setWhen(newWhen);
+      console.log('[ReminderForm] Date updated to:', newWhen);
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
@@ -216,11 +233,13 @@ const ReminderFormScreen = () => {
     
     // Cerrar picker después de seleccionar
     if (shouldClose) {
+      console.log('[ReminderForm] Closing date picker');
       setShowDatePicker(false);
     }
   };
 
   const onChangeTime = (event: any, selectedTime?: Date) => {
+    console.log('[ReminderForm] onChangeTime called. Event:', event.type, 'Time:', selectedTime);
     // Cerrar inmediatamente en Android, o si el usuario canceló
     const shouldClose = Platform.OS === 'android' || event.type === 'dismissed';
     
@@ -232,6 +251,7 @@ const ReminderFormScreen = () => {
       newWhen.setSeconds(0);
       newWhen.setMilliseconds(0);
       setWhen(newWhen);
+      console.log('[ReminderForm] Time updated to:', newWhen);
       
       // Validar si la nueva fecha/hora está en el pasado
       validateFutureTime(newWhen);
@@ -239,6 +259,7 @@ const ReminderFormScreen = () => {
     
     // Cerrar picker después de seleccionar
     if (shouldClose) {
+      console.log('[ReminderForm] Closing time picker');
       setShowTimePicker(false);
     }
   };
@@ -394,30 +415,49 @@ const ReminderFormScreen = () => {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={closePickers}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color="#666" />
-          </TouchableOpacity>
-          <Text style={styles.title}>
-            {params.reminderId ? 'Editar Recordatorio' : 'Nuevo Recordatorio'}
-          </Text>
-          <TouchableOpacity 
-            onPress={handleSave} 
-            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={styles.saveButtonText}>Guardar</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      enabled={true}
+    >
+      <TouchableWithoutFeedback onPress={closePickers}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+            <Text style={styles.title}>
+              {params.reminderId ? 'Editar Recordatorio' : 'Nuevo Recordatorio'}
+            </Text>
+            <TouchableOpacity 
+              onPress={handleSave} 
+              style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text style={styles.saveButtonText}>Guardar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={16}
+            removeClippedSubviews={false}
+            bounces={true}
+            alwaysBounceVertical={false}
+            overScrollMode="auto"
+            nestedScrollEnabled={true}
+            contentInsetAdjustmentBehavior="automatic"
+          >
         {/* Tipo de recordatorio */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de recordatorio</Text>
@@ -566,7 +606,7 @@ const ReminderFormScreen = () => {
           ))}
         </View>
 
-        {/* Notas */}
+        {/* Notas - Mejorado para mejor visibilidad */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notas (opcional)</Text>
           <TextInput
@@ -576,12 +616,23 @@ const ReminderFormScreen = () => {
             placeholder="Añade información adicional..."
             placeholderTextColor="#999"
             multiline
-            numberOfLines={3}
+            numberOfLines={4}
+            maxLength={500}
+            textAlignVertical="top"
+            onFocus={() => {
+              // Scroll al final cuando se enfoca en notas para asegurar visibilidad
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 300); // Aumentar el delay para mejor fluidez
+            }}
           />
+          <Text style={styles.characterCount}>
+            {notes.length}/500 caracteres
+          </Text>
         </View>
 
-        {/* Espacio adicional para scroll */}
-        <View style={{ height: 50 }} />
+        {/* Espacio adicional optimizado para scroll fluido */}
+        <View style={styles.bottomSpacer} />
       </ScrollView>
 
       {/* Date/Time Pickers */}
@@ -589,21 +640,23 @@ const ReminderFormScreen = () => {
         <>
           {showDatePicker && (
             <DateTimePicker
-              value={when}
+              value={when instanceof Date && !isNaN(when.getTime()) ? when : new Date()}
               mode="date"
               display="default"
               onChange={onChangeDate}
               minimumDate={new Date()}
+              locale="es"
             />
           )}
 
           {showTimePicker && (
             <DateTimePicker
-              value={when}
+              value={when instanceof Date && !isNaN(when.getTime()) ? when : new Date()}
               mode="time"
               display="default"
               onChange={onChangeTime}
               is24Hour={true}
+              locale="es"
             />
           )}
         </>
@@ -629,18 +682,22 @@ const ReminderFormScreen = () => {
                       </TouchableOpacity>
                       <Text style={styles.modalTitle}>Seleccionar Fecha</Text>
                       <TouchableOpacity 
-                        onPress={() => setShowDatePicker(false)}
+                        onPress={() => {
+                          // Guardar la fecha seleccionada antes de cerrar
+                          setShowDatePicker(false);
+                        }}
                         style={styles.modalButton}
                       >
                         <Text style={[styles.modalButtonText, styles.modalButtonPrimary]}>Listo</Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker
-                      value={when}
+                      value={when instanceof Date && !isNaN(when.getTime()) ? when : new Date()}
                       mode="date"
-                      display="spinner"
+                      display={Platform.OS === 'ios' && parseInt(Platform.Version, 10) >= 14 ? 'compact' : 'spinner'}
                       onChange={onChangeDate}
                       minimumDate={new Date()}
+                      locale="es"
                       style={styles.picker}
                     />
                   </View>
@@ -669,18 +726,22 @@ const ReminderFormScreen = () => {
                       </TouchableOpacity>
                       <Text style={styles.modalTitle}>Seleccionar Hora</Text>
                       <TouchableOpacity 
-                        onPress={() => setShowTimePicker(false)}
+                        onPress={() => {
+                          // Guardar la hora seleccionada antes de cerrar
+                          setShowTimePicker(false);
+                        }}
                         style={styles.modalButton}
                       >
                         <Text style={[styles.modalButtonText, styles.modalButtonPrimary]}>Listo</Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker
-                      value={when}
+                      value={when instanceof Date && !isNaN(when.getTime()) ? when : new Date()}
                       mode="time"
-                      display="spinner"
+                      display={Platform.OS === 'ios' && parseInt(Platform.Version, 10) >= 14 ? 'compact' : 'spinner'}
                       onChange={onChangeTime}
                       is24Hour={true}
+                      locale="es"
                       style={styles.picker}
                     />
                   </View>
@@ -690,8 +751,9 @@ const ReminderFormScreen = () => {
           </Modal>
         </>
       )}
-      </View>
-    </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -741,6 +803,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  scrollContainer: {
+    paddingBottom: 20,
+    flexGrow: 1,
+    minHeight: '100%',
   },
   section: {
     backgroundColor: 'white',
@@ -824,9 +891,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   notesInput: {
-    height: 80,
+    height: 100, // Aumentar altura para mejor visibilidad
     textAlignVertical: 'top',
     paddingTop: 12,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'right',
+    marginTop: 4,
   },
   dateTimeButton: {
     flexDirection: 'row',
@@ -877,34 +950,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2c3e50',
   },
-  // Estilos para modales iOS
+  // Estilos para modales iOS - Posicionados más arriba para mejor visibilidad
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center', // Centrar en lugar de flex-end
+    paddingHorizontal: 20,
   },
   modalContent: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 34, // Safe area para iPhone
+    borderRadius: 20, // Bordes redondeados en todas las esquinas
+    paddingBottom: 20,
+    maxHeight: '60%', // Limitar altura máxima
+    minWidth: '90%', // Asegurar ancho mínimo
+    maxWidth: '95%', // Limitar ancho máximo
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    minHeight: 56, // Altura mínima garantizada
   },
   modalButton: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+    minWidth: 70, // Ancho mínimo para evitar cortes
+    alignItems: 'center',
   },
   modalButtonText: {
     fontSize: 16,
     color: '#3498db',
+    textAlign: 'center',
   },
   modalButtonPrimary: {
     fontWeight: '600',
@@ -913,9 +998,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#2c3e50',
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8, // Espacio entre los botones y el título
   },
   picker: {
-    height: 200,
+    height: Platform.OS === 'ios' ? 200 : 180, // Reducir altura para mejor ajuste
+    backgroundColor: 'white',
+    width: '100%',
+  },
+  bottomSpacer: {
+    height: 120,
+    backgroundColor: 'transparent',
   },
 });
 

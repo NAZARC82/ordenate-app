@@ -74,6 +74,7 @@ export default function CalendarDropdown({
             value={temp || new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            locale="es-UY"
             onChange={onPick}
           />
           {Platform.OS === 'ios' && showInlineActions && (
