@@ -32,7 +32,9 @@ function buildCSVContent(movimientos, opciones = {}) {
   const {
     includeHeaders = true,
     columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
-    titulo = 'Reporte de Movimientos - Ordénate'
+    titulo = 'Reporte de Movimientos - Ordénate',
+    includeSignatureColumns = false,
+    signatures = null
   } = opciones;
 
   let csv = ''; // BOM UTF-8 manejado por helper
@@ -52,6 +54,16 @@ function buildCSVContent(movimientos, opciones = {}) {
     if (columnas.includes('monto')) headers.push('Monto');
     if (columnas.includes('estado')) headers.push('Estado');
     if (columnas.includes('nota')) headers.push('Descripción');
+    
+    // Agregar columnas de firma si está habilitado
+    if (includeSignatureColumns && signatures && signatures.mode !== 'none') {
+      headers.push('Firma Requerida');
+      headers.push('Cliente Nombre');
+      headers.push('Responsable Nombre');
+      headers.push('Firma Fecha');
+      headers.push('Firma Lugar');
+    }
+    
     csv += headers.map(escapeCSVField).join(',') + '\n';
   }
 
@@ -63,6 +75,17 @@ function buildCSVContent(movimientos, opciones = {}) {
     if (columnas.includes('monto')) row.push(formatCurrencyWithSign(mov.monto || 0, mov.tipo));
     if (columnas.includes('estado')) row.push(mov.estado ? mov.estado[0].toUpperCase() + mov.estado.slice(1) : '');
     if (columnas.includes('nota')) row.push(mov.nota || '');
+    
+    // Agregar datos de firma si está habilitado
+    if (includeSignatureColumns && signatures && signatures.mode !== 'none') {
+      const { meta = {} } = signatures;
+      row.push(meta.firmaRequerida ? 'Sí' : 'No');
+      row.push(meta.clienteNombre || '');
+      row.push(meta.responsableNombre || '');
+      row.push(meta.fecha ? new Date(meta.fecha).toLocaleDateString('es-UY') : '');
+      row.push(meta.lugar || '');
+    }
+    
     csv += row.map(escapeCSVField).join(',') + '\n';
   });
 

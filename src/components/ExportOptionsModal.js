@@ -8,16 +8,18 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Switch
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
-import { exportarPDFSeleccion, generarVistaPreviaHTML } from '../utils/pdfExport';
+import { exportPDFColored, generarVistaPreviaHTML } from '../utils/pdfExport';
 import { exportCSV } from '../utils/csvExport';
 import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
+import { generateSignatureOptions } from '../utils/signatureStorage';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -40,6 +42,10 @@ const DEFAULT_OPTIONS = {
     monto: true,
     estado: true,
     nota: true
+  },
+  firmas: {
+    modo: 'none', // 'none', 'lines', 'images'
+    incluirEnCSV: false
   }
 };
 
@@ -59,6 +65,7 @@ const ExportOptionsModal = ({
   const [tipo, setTipo] = useState(DEFAULT_OPTIONS.tipo);
   const [estados, setEstados] = useState(DEFAULT_OPTIONS.estados);
   const [columnas, setColumnas] = useState(DEFAULT_OPTIONS.columnas);
+  const [firmas, setFirmas] = useState(DEFAULT_OPTIONS.firmas);
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [exportResult, setExportResult] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
@@ -125,7 +132,8 @@ const ExportOptionsModal = ({
         fechaHasta,
         tipo,
         estados,
-        columnas
+        columnas,
+        firmas
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(options));
     } catch (error) {
@@ -146,6 +154,7 @@ const ExportOptionsModal = ({
         setTipo(parsed.tipo || DEFAULT_OPTIONS.tipo);
         setEstados({ ...DEFAULT_OPTIONS.estados, ...parsed.estados });
         setColumnas({ ...DEFAULT_OPTIONS.columnas, ...parsed.columnas });
+        setFirmas({ ...DEFAULT_OPTIONS.firmas, ...parsed.firmas });
       }
     } catch (error) {
       console.warn('Error cargando opciones de exportación:', error);
@@ -251,6 +260,7 @@ const ExportOptionsModal = ({
   // Manejar exportación
   const handleExportar = async () => {
     console.log('[export] Iniciando exportación PDF...');
+    console.log('[Export] PDF click');
     try {
       setLocalLoading(true);
       
@@ -282,12 +292,19 @@ const ExportOptionsModal = ({
       // Guardar opciones antes de exportar
       await saveOptions();
       
-      // Usar exportarPDFSeleccion directamente como en PantallaHistorial
-      const result = await exportarPDFSeleccion(movsFiltrados, {
+      // Generar opciones de firma si están habilitadas
+      let signatureOptions = null;
+      if (firmas.modo !== 'none') {
+        signatureOptions = await generateSignatureOptions(firmas.modo);
+      }
+      
+      // Usar exportPDFColored directamente para colores corporativos
+      const result = await exportPDFColored(movsFiltrados, {
         columnas: columnasSeleccionadas,
-        titulo: 'Reporte Filtrado',
+        titulo: 'Reporte Corporativo Filtrado',
         subtitulo: `${movsFiltrados.length} movimiento(s) - ${getRangoTexto()}`,
         contexto: 'filtrado',
+        signatures: signatureOptions,
         ...contexto
       });
       
@@ -326,6 +343,7 @@ const ExportOptionsModal = ({
   // Manejar exportación CSV
   const handleExportarCSV = async () => {
     console.log('[export] Iniciando exportación CSV...');
+    console.log('[Export] CSV click');
     try {
       setLocalLoading(true);
       
@@ -357,10 +375,18 @@ const ExportOptionsModal = ({
       // Guardar opciones antes de exportar
       await saveOptions();
       
+      // Generar opciones de firma si están habilitadas para CSV
+      let signatureOptions = null;
+      if (firmas.incluirEnCSV && firmas.modo !== 'none') {
+        signatureOptions = await generateSignatureOptions(firmas.modo);
+      }
+      
       // Exportar CSV usando la función importada
       const result = await exportCSV(movsFiltrados, {
         columnas: columnasSeleccionadas,
         contexto: 'filtrado',
+        includeSignatureColumns: firmas.incluirEnCSV,
+        signatures: signatureOptions,
         ...contexto
       });
       
@@ -672,6 +698,71 @@ const ExportOptionsModal = ({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Firmas */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderWithAction}>
+              <Text style={styles.sectionTitle}>🖋️ Opciones de Firma</Text>
+              <TouchableOpacity 
+                style={styles.settingsButton}
+                onPress={() => navigation.navigate('SignatureManager')}
+              >
+                <Ionicons name="settings" size={18} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.sectionSubtitle}>
+              Configure cómo se mostrarán las firmas en las exportaciones
+            </Text>
+            
+            {/* Modo de firma */}
+            <View style={styles.signatureModeContainer}>
+              {[
+                { key: 'none', label: 'Sin firmas', icon: 'close-circle-outline' },
+                { key: 'lines', label: 'Solo líneas', icon: 'remove' },
+                { key: 'images', label: 'Con imágenes', icon: 'image-outline' }
+              ].map((mode) => (
+                <TouchableOpacity 
+                  key={mode.key}
+                  style={[
+                    styles.signatureModeButton, 
+                    firmas.modo === mode.key && styles.signatureModeSelected
+                  ]}
+                  onPress={() => setFirmas(prev => ({ ...prev, modo: mode.key }))}
+                >
+                  <Ionicons 
+                    name={mode.icon} 
+                    size={18} 
+                    color={firmas.modo === mode.key ? '#FFFFFF' : '#666'} 
+                  />
+                  <Text style={[
+                    styles.signatureModeText,
+                    firmas.modo === mode.key && styles.signatureModeTextSelected
+                  ]}>
+                    {mode.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            {/* Opción para CSV */}
+            {firmas.modo !== 'none' && (
+              <View style={styles.csvSignatureOption}>
+                <View style={styles.switchContainer}>
+                  <Text style={styles.switchLabel}>Incluir datos de firma en CSV</Text>
+                  <Switch
+                    value={firmas.incluirEnCSV}
+                    onValueChange={(value) => setFirmas(prev => ({ ...prev, incluirEnCSV: value }))}
+                    trackColor={{ false: '#E0E0E0', true: '#3E7D75' }}
+                    thumbColor={firmas.incluirEnCSV ? '#FFFFFF' : '#F4F3F4'}
+                  />
+                </View>
+                <Text style={styles.csvHelpText}>
+                  Agrega columnas con información de firma al archivo CSV
+                </Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -876,6 +967,75 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  sectionHeaderWithAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F5F5F5',
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  signatureModeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  signatureModeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
+  },
+  signatureModeSelected: {
+    backgroundColor: '#3E7D75',
+    borderColor: '#3E7D75',
+  },
+  signatureModeText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  signatureModeTextSelected: {
+    color: '#FFFFFF',
+  },
+  csvSignatureOption: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  switchLabel: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  csvHelpText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
   },
 });
 

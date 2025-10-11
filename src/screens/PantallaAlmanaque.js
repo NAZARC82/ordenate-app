@@ -162,8 +162,8 @@ export default function PantallaAlmanaque() {
   }, [dayMovements, updateMovimiento]);
 
   const handleVerPendientes = useCallback(() => {
-    navigation.navigate('Historial', { 
-      screen: 'HistoryMain',
+    navigation.navigate('HistoryTab', { 
+      screen: 'PantallaHistorial',
       params: {
         filter: { estado: 'no-pagado', day: selectedDay } 
       }

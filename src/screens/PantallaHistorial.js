@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useMovimientos } from '../state/MovimientosContext'
 import { getDateString } from '../utils/date'
 import { getEstadoColor } from '../utils/estadoColor'
-import { exportPDFStyled } from '../utils/pdfExport'
+import { exportPDFColored } from '../utils/pdfExport'
 import { exportCSV } from '../utils/csvExport'
 import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
 import { formatDate } from '../utils/format'
@@ -274,6 +274,7 @@ export default function PantallaHistorial() {
   const handleExportPDF = async () => {
     try {
       setIsExporting(true);
+      console.log('[Export] PDF click');
 
       // Determinar qué exportar: seleccionados o todos los visibles
       const itemsToExport = selectedItems.size > 0 
@@ -328,7 +329,10 @@ export default function PantallaHistorial() {
         ext: 'pdf'
       });
       
-      await exportPDFStyled(movimientosParaExport, filename);
+      await exportPDFColored(movimientosParaExport, {
+        titulo: 'Reporte Corporativo Ordénate',
+        subtitulo: filename
+      });
       
       // Limpiar selección si había
       if (selectedItems.size > 0) {
@@ -347,6 +351,7 @@ export default function PantallaHistorial() {
   const handleExportCSV = async () => {
     try {
       setIsExporting(true);
+      console.log('[Export] CSV click');
 
       // Determinar qué exportar: seleccionados o todos los visibles
       const itemsToExport = selectedItems.size > 0 
