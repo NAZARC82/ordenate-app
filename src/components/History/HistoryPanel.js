@@ -4,6 +4,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { MovimientosContext } from '../../state/MovimientosContext';
 import ManualDateInput from '../Calendar/ManualDateInput';
 import { Ionicons } from '@expo/vector-icons';
+import { formatDate } from '../../utils/format';
 
 // Guardia defensiva (opcional, útil mientras probás)
 export default function HistoryPanel(props) {
@@ -130,7 +131,7 @@ export default function HistoryPanel(props) {
               {`${item.tipo === 'pago' ? '-' : '+'}$ ${item.monto}`}
             </Text>
             <Text style={[styles.rowFecha, isHighlighted && styles.textHighlighted]}>
-              {new Date(item.fecha).toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit', year:'numeric' })}
+              {formatDate(new Date(item.fecha).toISOString())}
             </Text>
           </View>
         </TouchableOpacity>

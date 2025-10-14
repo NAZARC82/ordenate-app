@@ -495,6 +495,8 @@ class ReminderServiceClass {
       hour: '2-digit',
       minute: '2-digit'
     });
+    // [REVISAR CONCAT] - Formateo manual en TypeScript
+    // Considerar: import { formatDate } from '../../utils/format' y usar formatDate(triggerDate.toISOString())
     const dateString = triggerDate.toLocaleDateString('es-UY');
     
     let body = '';

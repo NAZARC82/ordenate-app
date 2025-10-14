@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, SafeAreaView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, SafeAreaView, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getReminderSettings, saveReminderSettings, cleanupOldReminders } from '../modules/reminders'
+import { PdfDesignerSheet } from '../features/pdf/PdfDesignerSheet'
+import { FLAGS } from '../features/pdf/flags'
 
 export default function SettingsScreen() {
   const [reminderSettings, setReminderSettings] = useState({
@@ -10,6 +12,7 @@ export default function SettingsScreen() {
     enableBadge: true,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
+  const [pdfDesignerVisible, setPdfDesignerVisible] = useState(false);
 
   useEffect(() => {
     const loadReminderSettings = async () => {
@@ -39,11 +42,15 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FCFCF8' }}>
-      <View style={styles.container}>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Ajustes</Text>
       
-      {/* Sección de Recordatorios */}
-      <View style={styles.section}>
+        {/* Sección de Recordatorios */}
+        <View style={styles.section}>
         <Text style={styles.sectionTitle}>🔔 Recordatorios</Text>
         
         {/* Configuración de Ventana Silenciosa */}
@@ -106,26 +113,105 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sección de información */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ℹ️ Información</Text>
-        <Text style={styles.infoText}>
-          Gestiona tus recordatorios y configuraciones de la aplicación desde esta pantalla.
-        </Text>
-        <Text style={styles.subtitle}>
-          Próximamente: categorías, más opciones de personalización.
-        </Text>
-      </View>
-    </View>
+      {/* Sección de Documentos */}
+      {FLAGS.pdfHubInSettings && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📄 Documentos</Text>
+          
+          {/* Diseño de PDF */}
+          <TouchableOpacity 
+            style={styles.cleanupButton}
+            onPress={() => {
+              console.log('[SettingsScreen] Abriendo PDF Designer desde Ajustes');
+              setPdfDesignerVisible(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.optionContent}>
+              <View style={styles.optionLeft}>
+                <View style={styles.iconContainer}>
+                  <Ionicons 
+                    name="color-palette-outline" 
+                    size={24} 
+                    color="#6A5ACD" 
+                  />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Diseño de PDF</Text>
+                  <Text style={styles.optionDescription}>
+                    Personaliza colores y estilo de tus reportes PDF
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Firmas y Documentos */}
+          <TouchableOpacity 
+            style={styles.cleanupButton}
+            onPress={() => {
+              // TODO: Navegar a SignatureManagerScreen
+              Alert.alert('Firmas', 'Esta función está en desarrollo');
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.optionContent}>
+              <View style={styles.optionLeft}>
+                <View style={styles.iconContainer}>
+                  <Ionicons 
+                    name="create-outline" 
+                    size={24} 
+                    color="#50616D" 
+                  />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Firmas y Documentos</Text>
+                  <Text style={styles.optionDescription}>
+                    Gestiona firmas digitales para tus reportes
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#999" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+
+        {/* Sección de información */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ℹ️ Información</Text>
+          <Text style={styles.infoText}>
+            Gestiona tus recordatorios y configuraciones de la aplicación desde esta pantalla.
+          </Text>
+          <Text style={styles.subtitle}>
+            Próximamente: categorías, más opciones de personalización.
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* PDF Designer Modal */}
+      <PdfDesignerSheet
+        visible={pdfDesignerVisible}
+        onClose={() => setPdfDesignerVisible(false)}
+        onApply={() => {
+          console.log('[SettingsScreen] Preferencias PDF guardadas desde Ajustes');
+          setPdfDesignerVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    paddingHorizontal: 18, 
-    backgroundColor: "#FCFCF8" 
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: "#FCFCF8"
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 140, // Espacio extra para la barra de tabs + contenido de Documentos
   },
   title: { 
     fontSize: 24, 

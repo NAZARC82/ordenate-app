@@ -25,6 +25,7 @@ import {
   updateDefaultMeta,
   generateSignatureOptions
 } from '../utils/signatureStorage';
+import { formatDate } from '../utils/format';
 
 export default function SignatureManagerScreen() {
   const navigation = useNavigation();
@@ -152,7 +153,7 @@ export default function SignatureManagerScreen() {
           <View style={styles.signatureInfo}>
             <Text style={styles.signatureName}>{signature.name}</Text>
             <Text style={styles.signatureDate}>
-              Guardada: {new Date(signature.timestamp).toLocaleDateString('es-UY')}
+              Guardada: {formatDate(new Date(signature.timestamp).toISOString())}
             </Text>
           </View>
         </View>

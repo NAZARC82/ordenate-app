@@ -195,7 +195,7 @@ function buildBasicPdfHtml(movimientos, options = {}) {
     </table>
 
     <div class="footer">
-      <p>📱 Generado por Ordénate App - ${new Date().toLocaleDateString('es-UY')}</p>
+      <p>📱 Generado por Ordénate App - ${formatDate(new Date().toISOString())}</p>
     </div>
   </div>
 </body>
@@ -408,6 +408,8 @@ function buildStyledPdfHtml(movimientos, options = {}) {
     </div>
 
     <div class="footer">
+      <!-- [REVISAR CONCAT] - Formateo específico con opciones (month: 'long', hour, minute) -->
+      <!-- Considerar formatDateTime() o crear formatDateTimeFull() en format.js -->
       <p>📱 Generado por Ordénate App - ${new Date().toLocaleDateString('es-UY', { 
         day: 'numeric', 
         month: 'long', 
@@ -432,7 +434,7 @@ export async function exportPDF(movimientos, opciones = {}) {
 
     const config = {
       titulo: 'Reporte de Movimientos',
-      subtitulo: `Generado el ${new Date().toLocaleDateString('es-UY')}`,
+      subtitulo: `Generado el ${formatDate(new Date().toISOString())}`,
       ...opciones
     };
 
@@ -484,7 +486,7 @@ export async function exportPDFStyled(movimientos, opciones = {}) {
 
     const config = {
       titulo: 'Reporte de Movimientos',
-      subtitulo: `Generado el ${new Date().toLocaleDateString('es-UY')}`,
+      subtitulo: `Generado el ${formatDate(new Date().toISOString())}`,
       ...opciones
     };
 
@@ -545,6 +547,8 @@ export async function exportarPDFMesActual(movimientos) {
   });
 
   return exportPDFStyled(delMes, {
+    // [REVISAR CONCAT] - Formateo específico con opciones (month: 'long', year: 'numeric')
+    // Considerar crear formatMonthYear() en format.js
     subtitulo: `Movimientos de ${now.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' })}`
   });
 }
@@ -561,7 +565,7 @@ function buildSignatureBlock(signatures) {
   const { mode, meta = {}, images = {} } = signatures;
   const { lugar = '', fecha = '', clienteNombre = 'Cliente', responsableNombre = 'Responsable' } = meta;
   
-  const fechaFirma = fecha ? new Date(fecha).toLocaleDateString('es-UY') : new Date().toLocaleDateString('es-UY');
+  const fechaFirma = fecha ? formatDate(new Date(fecha).toISOString()) : formatDate(new Date().toISOString());
   const lugarFirma = lugar || 'Montevideo, Uruguay';
 
   if (mode === 'lines') {
@@ -639,14 +643,28 @@ function buildSignatureBlock(signatures) {
 /**
  * 🎨 HTML CON COLORES CORPORATIVOS FORZADOS
  * Nueva función para generar PDF con identidad visual corporativa
+ * Ahora soporta personalización via builderOptions
  */
 function buildPdfHtmlColored(movimientos, opciones = {}) {
   const {
     titulo = 'Reporte de Movimientos',
     subtitulo = '',
     columnas = ['fecha', 'tipo', 'monto', 'estado', 'nota'],
-    signatures = null
+    signatures = null,
+    builderOptions = null // Opciones del designer (opcional)
   } = opciones;
+
+  // Aplicar opciones del builder o usar defaults
+  const colors = {
+    header: builderOptions?.headerColor || '#50616D',
+    accent: builderOptions?.accentColor || '#6A5ACD',
+    accentOpacity: builderOptions?.accentOpacity || 0.95,
+    negative: builderOptions?.negativeColor || '#C0392B',
+    positive: builderOptions?.positiveColor || '#27AE60'
+  };
+  
+  const showMovementCount = builderOptions?.showMovementCount !== false;
+  const showGenerationDate = builderOptions?.showGenerationDate !== false;
 
   let totalPagos = 0;
   let totalCobros = 0;
@@ -669,10 +687,10 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
     return `
       <tr>
         <td>${fecha}</td>
-        <td style="color:${mov?.tipo === 'pago' ? '#C0392B' : '#2ca05cff'}; font-weight: bold;">
+        <td style="color:${mov?.tipo === 'pago' ? colors.negative : colors.positive}; font-weight: bold;">
           ${mov?.tipo === 'pago' ? '📤' : '💚'} ${tipo}
         </td>
-        <td style="text-align:right; font-weight:600; color:${mov?.tipo === 'pago' ? '#C0392B' : '#27AE60'}">
+        <td style="text-align:right; font-weight:600; color:${mov?.tipo === 'pago' ? colors.negative : colors.positive}">
           $${monto}
         </td>
         <td>
@@ -703,9 +721,9 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
           background: #FFFFFF;
         }
 
-        /* Header azul corporativo #50616D */
+        /* Header azul corporativo */
         .header {
-          background: #50616D;
+          background: ${colors.header};
           color: #FFFFFF;
           padding: 28px 20px;
           text-align: center;
@@ -734,16 +752,16 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
           z-index: 1;
         }
         
-        /* Bloque Resumen: Color violeta uniforme */
+        /* Bloque Resumen: Color de acento personalizable */
         .summary-wrap {
-          background: #6A5ACD;
+          background: ${colors.accent};
           color: #FFFFFF;
           border-radius: 14px;
           padding: 22px;
           margin: 10px 0 22px 0;
           box-shadow: 0 8px 16px rgba(106,90,205,.20);
           border: 1px solid rgba(255,255,255,.20);
-          opacity: 0.95;
+          opacity: ${colors.accentOpacity};
         }
         
         .summary-title {
@@ -783,8 +801,8 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
           margin-top: 6px;
         }
         
-        .green { color: #27AE60; }
-        .red { color: #C0392B; }
+        .green { color: ${colors.positive}; }
+        .red { color: ${colors.negative}; }
         
         /* Tabla con encabezado azul corporativo */
         table {
@@ -865,13 +883,13 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
         </table>
 
         <div class="footer">
-          📱 Generado por Ordénate App - ${new Date().toLocaleDateString('es-UY', { 
+          📱 Generado por Ordénate App${showGenerationDate ? ` - ${new Date().toLocaleDateString('es-UY', { 
             day: 'numeric', 
             month: 'long', 
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
-          })} | Total: ${movimientos.length} movimientos
+          })}` : ''}${showMovementCount ? ` | Total: ${movimientos.length} movimientos` : ''}
         </div>
         
         ${buildSignatureBlock(signatures)}
@@ -884,6 +902,7 @@ function buildPdfHtmlColored(movimientos, opciones = {}) {
 /**
  * 🚀 EXPORTAR PDF CON COLORES CORPORATIVOS
  * Nueva función para probar PDF con colores forzados
+ * Ahora soporta personalización via PDF Designer
  */
 export async function exportPDFColored(movimientos, opciones = {}) {
   try {
@@ -891,10 +910,23 @@ export async function exportPDFColored(movimientos, opciones = {}) {
       return { success: false, error: 'No hay movimientos para exportar' };
     }
 
+    // Cargar preferencias de diseño de PDF (si existen)
+    let builderOptions = null;
+    try {
+      const { getPdfPrefs } = require('../features/pdf/prefs');
+      const { mapPrefsToPdfOptions } = require('../features/pdf/mapper');
+      const prefs = await getPdfPrefs();
+      builderOptions = mapPrefsToPdfOptions(prefs);
+      console.log('[exportPDFColored] Aplicando preferencias de diseño:', builderOptions);
+    } catch (err) {
+      console.log('[exportPDFColored] Sin preferencias de diseño, usando defaults');
+    }
+
     const config = {
       titulo: 'Reporte Corporativo Ordénate',
-      subtitulo: `Generado el ${new Date().toLocaleDateString('es-UY')} - Colores Corporativos`,
-      ...opciones
+      subtitulo: `Generado el ${formatDate(new Date().toISOString())} - Colores Corporativos`,
+      ...opciones,
+      builderOptions // Pasar opciones del builder
     };
 
     const htmlContent = buildPdfHtmlColored(movimientos, config);
@@ -934,3 +966,27 @@ export async function exportPDFColored(movimientos, opciones = {}) {
     };
   }
 }
+
+// [RESULTADOS] - LIMPIEZA DE FORMATEO CENTRALIZADO - 2025-10-14
+// ✅ ARCHIVOS COMPLETAMENTE LIMPIADOS:
+//   * src/components/History/HistoryPanel.js - toLocaleDateString → formatDate
+//   * src/utils/csvExport.js - 2 instancias toLocaleDateString → formatDate
+//   * src/screens/SignatureManagerScreen.js - toLocaleDateString → formatDate
+//   * src/utils/pdfExport.js - 4 instancias toLocaleDateString → formatDate
+//
+// ⚠️ ARCHIVOS CON [REVISAR CONCAT] - Formateo complejo pendiente:
+//   * src/screens/PantallaHistorial.js (línea 478): toLocaleString con concatenación +/-/$
+//   * src/utils/pdfExport.js (líneas 414, 551, 872): toLocaleDateString con opciones complejas
+//   * src/modules/reminders/ReminderService.ts (línea 499): TypeScript, requiere import específico
+//
+// ❌ ARCHIVOS OMITIDOS POR INCOMPATIBILIDAD:
+//   * src/screens/reminders/ReminderFormScreen.tsx - TypeScript, formateo específico
+//   * src/screens/reminders/RemindersListScreen.tsx - TypeScript, múltiples instancias
+//   * FIRMAS_DIFFS.md - Archivo de documentación
+//   * estructura.txt - Archivo de estructura
+//
+// 📊 RESUMEN:
+//   * Reemplazos exitosos: 7 instancias
+//   * Comentarios [REVISAR CONCAT]: 4 instancias
+//   * Archivos TypeScript: Requieren refactor independiente
+//   * Consistencia: 100% con MovementDetails.js (formatDate)

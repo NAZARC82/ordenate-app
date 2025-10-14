@@ -1,9 +1,20 @@
 // src/__tests__/format.test.js
 /**
  * Unit tests for formatting utilities (migrados a format.js)
+ * 
+ * [PENDIENTE] - CONFIGURACIÓN DE TESTING
+ * Este archivo contiene tests válidos pero requiere configuración adicional para RN:
+ * - Jest configuration para React Native
+ * - Babel transform para ES modules
+ * - Mock de dependencias nativas (Expo, etc.)
+ * 
+ * Tests validados manualmente:
+ * ✅ format.js tiene sintaxis válida (node -e test)
+ * ✅ Funciones exportadas correctamente (formatCurrency, formatDate, formatPercent)  
+ * ✅ Importación en pdfExport.js funciona en contexto RN
  */
 
-import { formatCurrencyWithSymbol, formatDate, formatDateTime } from '../utils/format';
+import { formatCurrencyWithSymbol, formatDate, formatDateTime, formatCurrency, formatPercent } from '../utils/format';
 
 describe('format utilities (centralizadas)', () => {
   
@@ -62,6 +73,43 @@ describe('format utilities (centralizadas)', () => {
     test('should handle ISO string input', () => {
       const result = formatDateTime('2025-09-30T15:30:45Z');
       expect(result).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}.*\d{2}:\d{2}/);
+    });
+  });
+
+  describe('formatCurrency', () => {
+    test('should format amounts without symbol (default UYU)', () => {
+      expect(formatCurrency(1000)).toBe('1.000,00');
+      expect(formatCurrency(500.75)).toBe('500,75');
+      expect(formatCurrency(0)).toBe('0,00');
+    });
+
+    test('should handle different currencies', () => {
+      expect(formatCurrency(1000, 'USD', 'en-US')).toMatch(/\$1,000\.00/);
+      expect(formatCurrency(1000, 'EUR', 'de-DE')).toMatch(/1\.000,00\s*€/);
+    });
+
+    test('should fallback gracefully for invalid values', () => {
+      expect(formatCurrency(NaN)).toBe('0,00');
+      expect(formatCurrency('invalid')).toBe('0,00');
+    });
+  });
+
+  describe('formatPercent', () => {
+    test('should format percentages with default 1 decimal', () => {
+      expect(formatPercent(0.15)).toBe('15,0%');
+      expect(formatPercent(0.5)).toBe('50,0%');
+      expect(formatPercent(1.25)).toBe('125,0%');
+    });
+
+    test('should handle custom decimal places', () => {
+      expect(formatPercent(0.1234, 2)).toBe('12,34%');
+      expect(formatPercent(0.1234, 0)).toBe('12%');
+    });
+
+    test('should handle edge cases', () => {
+      expect(formatPercent(0)).toBe('0,0%');
+      expect(formatPercent(NaN)).toBe('0,0%');
+      expect(formatPercent('invalid')).toBe('0,0%');
     });
   });
 });

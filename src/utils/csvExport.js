@@ -42,7 +42,7 @@ function buildCSVContent(movimientos, opciones = {}) {
   // Título y metadatos
   if (titulo) {
     csv += `${escapeCSVField(titulo)}\n`;
-    csv += `Fecha de generación,${escapeCSVField(new Date().toLocaleDateString('es-UY'))}\n`;
+    csv += `Fecha de generación,${escapeCSVField(formatDate(new Date().toISOString()))}\n`;
     csv += `Total de movimientos,${movimientos.length}\n\n`;
   }
 
@@ -82,7 +82,7 @@ function buildCSVContent(movimientos, opciones = {}) {
       row.push(meta.firmaRequerida ? 'Sí' : 'No');
       row.push(meta.clienteNombre || '');
       row.push(meta.responsableNombre || '');
-      row.push(meta.fecha ? new Date(meta.fecha).toLocaleDateString('es-UY') : '');
+      row.push(meta.fecha ? formatDate(new Date(meta.fecha).toISOString()) : '');
       row.push(meta.lugar || '');
     }
     

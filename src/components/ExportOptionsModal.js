@@ -20,6 +20,9 @@ import { exportCSV } from '../utils/csvExport';
 import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
 import { generateSignatureOptions } from '../utils/signatureStorage';
+import { FLAGS } from '../features/pdf/flags';
+// @deprecated - Centralizado en Ajustes → Gestor de Documentos
+import { PdfDesignerSheet } from '../features/pdf/PdfDesignerSheet';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -56,6 +59,9 @@ const ExportOptionsModal = ({
   movimientos = [],
   loading = false 
 }) => {
+  // 🔍 DEBUG: Confirmar que este componente se renderiza
+  console.log('[ExportOptionsModal] render - movimientos:', movimientos.length);
+  
   const navigation = useNavigation();
   
   // Estado para las opciones (inicializadas con defaults)
@@ -70,6 +76,8 @@ const ExportOptionsModal = ({
   const [exportResult, setExportResult] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  // @deprecated - pdfDesignerVisible: centralizado en Ajustes
+  const [pdfDesignerVisible, setPdfDesignerVisible] = useState(false);
 
   // Resetear estado de navegación cuando se cierra el modal
   useEffect(() => {
@@ -775,6 +783,23 @@ const ExportOptionsModal = ({
             <Ionicons name="eye" size={20} color="white" />
             <Text style={styles.exportButtonText}>Vista Previa</Text>
           </TouchableOpacity>
+
+          {/* @deprecated - Botón "Modificar PDF" desactivado: centralizado en Ajustes → Gestor de Documentos */}
+          {FLAGS.pdfDesignerInExport && (
+            <TouchableOpacity 
+              testID="debug-modificar-pdf"
+              style={[styles.exportButton, styles.designButton, (isNavigating || localLoading || loading) && styles.exportButtonDisabled]}
+              onPress={() => {
+                console.log('[ExportOptions] Botón Modificar PDF presionado');
+                setPdfDesignerVisible(true);
+              }}
+              disabled={isNavigating || localLoading || loading}
+            >
+              <Ionicons name="color-palette" size={20} color="white" />
+              <Text style={styles.exportButtonText}>Modificar PDF</Text>
+              <Text style={{ position: 'absolute', opacity: 0 }}>btn-modificar-pdf-on</Text>
+            </TouchableOpacity>
+          )}
           
           {/* Segunda fila - Exportar PDF y CSV */}
           <View style={styles.exportRow}>
@@ -814,6 +839,18 @@ const ExportOptionsModal = ({
       fileName={exportResult?.fileName}
       mimeType={exportResult?.mimeType}
     />
+
+    {/* @deprecated - PDF Designer Sheet: centralizado en Ajustes → Gestor de Documentos */}
+    {FLAGS.pdfDesignerInExport && (
+      <PdfDesignerSheet
+        visible={pdfDesignerVisible}
+        onClose={() => setPdfDesignerVisible(false)}
+        onApply={() => {
+          // Las preferencias ya están guardadas, el próximo PDF las usará
+          console.log('[ExportOptions] Preferencias PDF actualizadas');
+        }}
+      />
+    )}
   </>
   );
 };
@@ -953,6 +990,9 @@ const styles = StyleSheet.create({
   },
   previewButton: {
     backgroundColor: '#3498db',
+  },
+  designButton: {
+    backgroundColor: '#6A5ACD', // Violeta corporativo
   },
   pdfButton: {
     backgroundColor: '#e74c3c',

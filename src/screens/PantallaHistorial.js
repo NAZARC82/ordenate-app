@@ -10,7 +10,7 @@ import { getEstadoColor } from '../utils/estadoColor'
 import { exportPDFColored } from '../utils/pdfExport'
 import { exportCSV } from '../utils/csvExport'
 import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
-import { formatDate } from '../utils/format'
+import { formatDate, formatCurrency } from '../utils/format'
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
@@ -473,6 +473,8 @@ export default function PantallaHistorial() {
                   styles.movementMonto,
                   { color: item.tipo === 'pago' ? '#c62828' : '#2e7d32' }
                 ]}>
+                  {/* [REVISAR CONCAT] - Formateo manual con concatenación de símbolos (+/-/$) */}
+                  {/* Considera crear formatCurrencyWithSign(amount, type) en format.js */}
                   {item.tipo === 'pago' ? '-' : '+'}${typeof item.monto === 'number' ? item.monto.toLocaleString('es-UY') : (item.monto || '0')}
                 </Text>
                 <View style={[styles.estadoBadge, { backgroundColor: getEstadoColor(item.estado || 'pendiente') }]}>
