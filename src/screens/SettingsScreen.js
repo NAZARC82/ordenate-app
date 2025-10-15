@@ -2,17 +2,15 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, SafeAreaView, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getReminderSettings, saveReminderSettings, cleanupOldReminders } from '../modules/reminders'
-import { PdfDesignerSheet } from '../features/pdf/PdfDesignerSheet'
 import { FLAGS } from '../features/pdf/flags'
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const [reminderSettings, setReminderSettings] = useState({
     silentWindow: { enabled: true, startTime: '22:00', endTime: '08:00' },
     defaultSnoozeMinutes: 60,
     enableBadge: true,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
-  const [pdfDesignerVisible, setPdfDesignerVisible] = useState(false);
 
   useEffect(() => {
     const loadReminderSettings = async () => {
@@ -43,6 +41,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FCFCF8' }}>
       <ScrollView 
+        testID="settings-scroll"
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -118,12 +117,13 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📄 Documentos</Text>
           
-          {/* Diseño de PDF */}
+          {/* Gestor de Documentos Centralizado */}
           <TouchableOpacity 
+            testID="btn-documents"
             style={styles.cleanupButton}
             onPress={() => {
-              console.log('[SettingsScreen] Abriendo PDF Designer desde Ajustes');
-              setPdfDesignerVisible(true);
+              console.log('[SettingsScreen] Navegando a Gestor de Documentos');
+              navigation.navigate('DocumentManager');
             }}
             activeOpacity={0.7}
           >
@@ -131,44 +131,15 @@ export default function SettingsScreen() {
               <View style={styles.optionLeft}>
                 <View style={styles.iconContainer}>
                   <Ionicons 
-                    name="color-palette-outline" 
+                    name="folder-open-outline" 
                     size={24} 
                     color="#6A5ACD" 
                   />
                 </View>
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>Diseño de PDF</Text>
+                  <Text style={styles.optionTitle}>Gestor de Documentos</Text>
                   <Text style={styles.optionDescription}>
-                    Personaliza colores y estilo de tus reportes PDF
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Firmas y Documentos */}
-          <TouchableOpacity 
-            style={styles.cleanupButton}
-            onPress={() => {
-              // TODO: Navegar a SignatureManagerScreen
-              Alert.alert('Firmas', 'Esta función está en desarrollo');
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.optionContent}>
-              <View style={styles.optionLeft}>
-                <View style={styles.iconContainer}>
-                  <Ionicons 
-                    name="create-outline" 
-                    size={24} 
-                    color="#50616D" 
-                  />
-                </View>
-                <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>Firmas y Documentos</Text>
-                  <Text style={styles.optionDescription}>
-                    Gestiona firmas digitales para tus reportes
+                    Recientes, firmas y diseño de PDF centralizado
                   </Text>
                 </View>
               </View>
@@ -189,16 +160,6 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      {/* PDF Designer Modal */}
-      <PdfDesignerSheet
-        visible={pdfDesignerVisible}
-        onClose={() => setPdfDesignerVisible(false)}
-        onApply={() => {
-          console.log('[SettingsScreen] Preferencias PDF guardadas desde Ajustes');
-          setPdfDesignerVisible(false);
-        }}
-      />
     </SafeAreaView>
   );
 }
