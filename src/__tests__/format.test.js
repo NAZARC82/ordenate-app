@@ -65,14 +65,14 @@ describe('format utilities (centralizadas)', () => {
       const testDate = new Date('2025-09-30T15:30:45Z');
       const result = formatDateTime(testDate.toISOString());
       
-      // Should include date and time components
-      expect(result).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}/); // Date part
-      expect(result).toMatch(/\d{2}:\d{2}/); // Time part
+      // Should include date and time components (textual format: "30 set. 2025, 12:30:45 p. m.")
+      expect(result).toMatch(/\d{1,2}\s+\w+\.?\s+\d{4}/); // Date part (textual month)
+      expect(result).toMatch(/\d{1,2}:\d{2}:\d{2}/); // Time part with seconds
     });
 
     test('should handle ISO string input', () => {
       const result = formatDateTime('2025-09-30T15:30:45Z');
-      expect(result).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}.*\d{2}:\d{2}/);
+      expect(result).toMatch(/\d{1,2}\s+\w+\.?\s+\d{4}.*\d{1,2}:\d{2}:\d{2}/);
     });
   });
 

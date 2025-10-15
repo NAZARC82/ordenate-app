@@ -1,45 +1,66 @@
 // jest.setup.ts
 // Setup para Jest con React Native Testing Library
 
-// Necesario para @testing-library/react-native >= 12.4
-import '@testing-library/react-native/extend-expect';
+// @testing-library/react-native >= 12.4 ya incluye los matchers por defecto
 
-// Mock AsyncStorage
-import mockAsyncStorage from '@react-native-async-storage/async-storage/jest/async-storage-mock';
-jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
+// ✅ Configurar timezone UTC para tests deterministas
+process.env.TZ = 'UTC';
 
-// Mock Expo modules comunes
-jest.mock('expo-file-system', () => ({
-  documentDirectory: 'file://mock/',
-  makeDirectoryAsync: jest.fn(),
-  writeAsStringAsync: jest.fn(),
-  readAsStringAsync: jest.fn(),
-  deleteAsync: jest.fn(),
-  getInfoAsync: jest.fn(() => Promise.resolve({ exists: true })),
-}));
+// Extender el tipo global para Jest
+declare global {
+  var __ExpoImportMetaRegistry: any;
+  namespace NodeJS {
+    interface Global {
+      require: any;
+    }
+  }
+}
 
-jest.mock('expo-sharing', () => ({
-  shareAsync: jest.fn(),
-}));
+// Mock de structuredClone para Expo Winter Runtime
+if (typeof (globalThis as any).structuredClone === 'undefined') {
+  (globalThis as any).structuredClone = (obj: any) => {
+    return JSON.parse(JSON.stringify(obj));
+  };
+}
 
-jest.mock('expo-print', () => ({
-  printToFileAsync: jest.fn(() => Promise.resolve({ uri: 'file://mock/test.pdf' })),
-}));
+// Mock de Expo Winter Runtime (Expo SDK 54+)
+(globalThis as any).__ExpoImportMetaRegistry = {
+  register: () => {},
+  get: () => undefined,
+};
 
-// Mock de notificaciones si es necesario
-jest.mock('expo-notifications', () => ({
-  scheduleNotificationAsync: jest.fn(),
-  cancelScheduledNotificationAsync: jest.fn(),
-  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
-}));
+// Mock de require.context (usado por Expo Router)
+const mockRequireContext = () => ({
+  keys: () => [],
+  resolve: () => '',
+  id: '',
+});
 
-// Silenciar warnings de React Native en tests
-jest.spyOn(console, 'warn').mockImplementation((msg) => {
+if (!(globalThis as any).require) {
+  (globalThis as any).require = {};
+}
+
+if (!(globalThis as any).require.context) {
+  (globalThis as any).require.context = mockRequireContext;
+}
+
+// ✅ Resetear mocks antes de cada test (para inspeccionar llamadas)
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.useRealTimers();
+});
+
+// Silenciar warnings innecesarios en tests
+const originalWarn = console.warn;
+console.warn = (...args: any[]) => {
+  const msg = args[0];
   if (
-    msg.includes('Animated:') ||
-    msg.includes('componentWillReceiveProps')
+    typeof msg === 'string' &&
+    (msg.includes('Animated:') ||
+     msg.includes('componentWillReceiveProps') ||
+     msg.includes('Winter'))
   ) {
     return;
   }
-  console.warn(msg);
-});
+  originalWarn.apply(console, args);
+};

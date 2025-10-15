@@ -3,9 +3,6 @@ import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { exportPDFColored } from '../utils/pdfExport';
 import { exportCSV } from '../utils/csvExport';
-import { FLAGS } from '../features/pdf/flags';
-// @deprecated - Centralizado en Ajustes → Gestor de Documentos
-import { PdfDesignerSheet } from '../features/pdf/PdfDesignerSheet';
 
 type ExportState = 'idle' | 'exporting_pdf' | 'exporting_csv';
 
@@ -24,8 +21,6 @@ export default function ExportBar({
   console.log('[ExportBar] render - movimientos:', movimientosSeleccionados.length);
   
   const [exportState, setExportState] = useState<ExportState>('idle');
-  // @deprecated - pdfDesignerVisible: centralizado en Ajustes
-  const [pdfDesignerVisible, setPdfDesignerVisible] = useState(false);
   
   const isBusy = exportState !== 'idle';
   const haySeleccion = movimientosSeleccionados.length > 0;
@@ -86,26 +81,8 @@ export default function ExportBar({
   }
 
   return (
-    <>
-      <View style={[styles.container, style]}>
-        {/* @deprecated - Botón "Modificar PDF" desactivado: centralizado en Ajustes → Gestor de Documentos */}
-        {FLAGS.pdfDesignerInExport && (
-          <TouchableOpacity
-            testID="debug-modificar-pdf-bar"
-            disabled={isBusy}
-            onPress={() => {
-              console.log('[ExportBar] Botón Modificar PDF presionado');
-              setPdfDesignerVisible(true);
-            }}
-            style={[styles.button, styles.designButton, { opacity: isBusy ? 0.5 : 1 }]}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="color-palette" size={18} color="white" />
-            <Text style={styles.buttonText}>🎨</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
+    <View style={[styles.container, style]}>
+      <TouchableOpacity
           disabled={isBusy || !haySeleccion}
           onPress={() => onExportPDF()}
           style={[styles.button, styles.pdfButton, disabledStyle]}
@@ -130,20 +107,7 @@ export default function ExportBar({
             <Text style={[styles.buttonText, styles.csvButtonText]}>CSV</Text>
           )}
         </TouchableOpacity>
-      </View>
-
-      {/* @deprecated - PDF Designer Sheet: centralizado en Ajustes → Gestor de Documentos */}
-      {FLAGS.pdfDesignerInExport && (
-        <PdfDesignerSheet
-          visible={pdfDesignerVisible}
-          onClose={() => setPdfDesignerVisible(false)}
-          onApply={() => {
-            console.log('[ExportBar] Preferencias PDF actualizadas');
-            setPdfDesignerVisible(false);
-          }}
-        />
-      )}
-    </>
+    </View>
   );
 }
 

@@ -21,8 +21,6 @@ import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
 import { generateSignatureOptions } from '../utils/signatureStorage';
 import { FLAGS } from '../features/pdf/flags';
-// @deprecated - Centralizado en Ajustes → Gestor de Documentos
-import { PdfDesignerSheet } from '../features/pdf/PdfDesignerSheet';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -76,8 +74,6 @@ const ExportOptionsModal = ({
   const [exportResult, setExportResult] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  // @deprecated - pdfDesignerVisible: centralizado en Ajustes
-  const [pdfDesignerVisible, setPdfDesignerVisible] = useState(false);
 
   // Resetear estado de navegación cuando se cierra el modal
   useEffect(() => {
@@ -783,25 +779,8 @@ const ExportOptionsModal = ({
             <Ionicons name="eye" size={20} color="white" />
             <Text style={styles.exportButtonText}>Vista Previa</Text>
           </TouchableOpacity>
-
-          {/* @deprecated - Botón "Modificar PDF" desactivado: centralizado en Ajustes → Gestor de Documentos */}
-          {FLAGS.pdfDesignerInExport && (
-            <TouchableOpacity 
-              testID="debug-modificar-pdf"
-              style={[styles.exportButton, styles.designButton, (isNavigating || localLoading || loading) && styles.exportButtonDisabled]}
-              onPress={() => {
-                console.log('[ExportOptions] Botón Modificar PDF presionado');
-                setPdfDesignerVisible(true);
-              }}
-              disabled={isNavigating || localLoading || loading}
-            >
-              <Ionicons name="color-palette" size={20} color="white" />
-              <Text style={styles.exportButtonText}>Modificar PDF</Text>
-              <Text style={{ position: 'absolute', opacity: 0 }}>btn-modificar-pdf-on</Text>
-            </TouchableOpacity>
-          )}
           
-          {/* Segunda fila - Exportar PDF y CSV */}
+          {/* Exportar PDF y CSV */}
           <View style={styles.exportRow}>
             <TouchableOpacity 
               style={[styles.exportButton, styles.pdfButton, styles.halfButton, (localLoading || loading) && styles.exportButtonDisabled]}
@@ -839,18 +818,6 @@ const ExportOptionsModal = ({
       fileName={exportResult?.fileName}
       mimeType={exportResult?.mimeType}
     />
-
-    {/* @deprecated - PDF Designer Sheet: centralizado en Ajustes → Gestor de Documentos */}
-    {FLAGS.pdfDesignerInExport && (
-      <PdfDesignerSheet
-        visible={pdfDesignerVisible}
-        onClose={() => setPdfDesignerVisible(false)}
-        onApply={() => {
-          // Las preferencias ya están guardadas, el próximo PDF las usará
-          console.log('[ExportOptions] Preferencias PDF actualizadas');
-        }}
-      />
-    )}
   </>
   );
 };

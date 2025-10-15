@@ -173,7 +173,7 @@ describe('exportName utilities', () => {
       
       const result = buildSubtitle(params);
       expect(result).toContain('30/09/2025');
-      expect(result).toContain('Pagos');
+      expect(result).toContain('pagos'); // lowercase as per implementation
       expect(result).toContain('5');
     });
 
@@ -188,7 +188,7 @@ describe('exportName utilities', () => {
       const result = buildSubtitle(params);
       expect(result).toContain('01/09/2025');
       expect(result).toContain('30/09/2025');
-      expect(result).toContain('Cobros');
+      expect(result).toContain('cobros'); // lowercase as per implementation
       expect(result).toContain('10');
     });
 

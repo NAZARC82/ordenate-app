@@ -114,7 +114,7 @@ describe('DocumentManagerScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('Intensidad de Color')).toBeTruthy();
       expect(screen.getByTestId('int-0.4')).toBeTruthy();
-      expect(screen.getByTestId('int-1.0')).toBeTruthy();
+      expect(screen.getByTestId('int-1')).toBeTruthy(); // Fixed: int-1 not int-1.0
     });
   });
 

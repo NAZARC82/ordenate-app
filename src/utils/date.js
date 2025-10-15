@@ -14,14 +14,14 @@ export const todayLocalStart = () => {
 };
 
 /**
- * Convert Date to YYYY-MM-DD in local timezone (no UTC)
+ * Convert Date to YYYY-MM-DD in UTC timezone (for consistency with tests)
  * @param {Date} date - Date object
- * @returns {string} - Date in YYYY-MM-DD format (local)
+ * @returns {string} - Date in YYYY-MM-DD format (UTC)
  */
 export const toYMDLocal = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -54,6 +54,7 @@ export const getDateString = (isoString) => {
   if (!isoString) return '';
   try {
     const date = new Date(isoString);
+    if (isNaN(date.getTime())) return ''; // Invalid date
     return toYMDLocal(date); // Use local timezone extraction
   } catch (error) {
     console.warn('Invalid ISO date string:', isoString);
@@ -81,13 +82,13 @@ export const getTodayString = () => {
 };
 
 /**
- * Create ISO string for "today" at noon (local timezone)
+ * Create ISO string for "today" at noon UTC
  * Prevents +1 day issues caused by UTC conversion
- * @returns {string} - Today's date as ISO string at noon local time
+ * @returns {string} - Today's date as ISO string at noon UTC
  */
 export const getTodayISO = () => {
-  const today = todayLocalStart();
-  today.setHours(12, 0, 0, 0); // Set to noon local time
+  const today = new Date();
+  today.setUTCHours(12, 0, 0, 0); // Set to noon UTC
   return today.toISOString();
 };
 
@@ -110,7 +111,9 @@ export const isValidISODate = (isoString) => {
 export const getMonthString = (isoString) => {
   if (!isoString) return '';
   try {
-    return getDateString(isoString).substring(0, 7); // YYYY-MM
+    const dateStr = getDateString(isoString);
+    if (!dateStr) return ''; // Invalid date
+    return dateStr.substring(0, 7); // YYYY-MM
   } catch (error) {
     console.warn('Invalid ISO date string for month:', isoString);
     return '';

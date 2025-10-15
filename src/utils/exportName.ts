@@ -78,18 +78,19 @@ const sanitizeFileName = (name: string): string => {
 };
 
 /**
- * Convierte una fecha ISO a formato YYYY-MM-DD
+ * Convierte una fecha ISO a formato YYYY-MM-DD usando UTC
  */
 export const formatDateForFilename = (isoString: string): string => {
   try {
     const date = new Date(isoString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    if (isNaN(date.getTime())) return ''; // Invalid date
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   } catch (error) {
     console.warn('Error formateando fecha para filename:', isoString, error);
-    return 'fecha-invalida';
+    return '';
   }
 };
 
@@ -107,11 +108,11 @@ export const fmtYMD = (ymd: string): string => {
  * Obtiene el rango de fechas de una lista de movimientos
  */
 export const getMovementsDateRange = (movements: Array<{ fechaISO: string }>): {
-  startYMD: string | null;
-  endYMD: string | null;
+  startYMD: string;
+  endYMD: string;
 } => {
   if (movements.length === 0) {
-    return { startYMD: null, endYMD: null };
+    return { startYMD: '', endYMD: '' };
   }
 
   // Ordenar por fecha
@@ -132,7 +133,7 @@ export const getMovementsDateRange = (movements: Array<{ fechaISO: string }>): {
  * Detecta si todos los movimientos son del mismo día
  */
 export const isSingleDay = (movements: Array<{ fechaISO: string }>): boolean => {
-  if (movements.length === 0) return false;
+  if (movements.length === 0) return true; // Empty array = single day semantics
   
   const firstDateYMD = formatDateForFilename(movements[0].fechaISO);
   return movements.every(m => formatDateForFilename(m.fechaISO) === firstDateYMD);

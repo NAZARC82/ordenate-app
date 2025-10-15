@@ -8,7 +8,7 @@
  */
 
 /**
- * Formatear fecha en formato local dd/MM/yyyy
+ * Formatear fecha en formato local dd/MM/yyyy usando UTC
  * @param {string} isoString - Fecha ISO
  * @param {string} locale - Locale a usar (default: 'es-UY')
  * @returns {string} - Fecha formateada
@@ -18,7 +18,8 @@ export function formatDate(isoString, locale = 'es-UY') {
     return new Date(isoString).toLocaleDateString(locale, {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'UTC' // Usar UTC para consistencia
     });
   } catch (error) {
     return 'Fecha inválida';
@@ -62,15 +63,23 @@ export function formatCurrency(amount, currency = 'UYU', locale = 'es-UY') {
 /**
  * Formatear moneda con símbolo UYU (para pantallas)
  * @param {number} amount - Cantidad a formatear
- * @returns {string} - Monto formateado con símbolo
+ * @returns {string} - Monto formateado con símbolo (formato: $ -500 para negativos)
  */
 export function formatCurrencyWithSymbol(amount) {
-  if (typeof amount !== 'number' || isNaN(amount)) return '$U 0';
-  return new Intl.NumberFormat('es-UY', {
-    style: 'currency',
-    currency: 'UYU',
+  if (typeof amount !== 'number' || isNaN(amount)) return '$ 0';
+  
+  const isNegative = amount < 0;
+  const absAmount = Math.abs(amount);
+  
+  // Formatear con Intl
+  const formatted = new Intl.NumberFormat('es-UY', {
+    style: 'decimal',
     minimumFractionDigits: 0,
-  }).format(amount);
+    maximumFractionDigits: 0,
+  }).format(absAmount);
+  
+  // Formato: $ -500 para negativos, $ 500 para positivos
+  return isNegative ? `$ -${formatted}` : `$ ${formatted}`;
 }
 
 /**

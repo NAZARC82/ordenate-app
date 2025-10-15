@@ -9,7 +9,7 @@ describe('PDF Mapper', () => {
     expect(options).toBeDefined();
     expect(options.headerColor).toBe('#50616D');
     expect(options.accentColor).toBe('#6A5ACD');
-    expect(options.accentOpacity).toBeCloseTo(1.0, 1);
+    expect(options.accentOpacity).toBeCloseTo(0.95, 2); // intensity 1.0 → opacity 0.95
   });
 
   it('debe aplicar color corporativo personalizado', () => {
@@ -29,7 +29,7 @@ describe('PDF Mapper', () => {
     };
     
     const options = mapPrefsToPdfOptions(customPrefs);
-    expect(options.accentOpacity).toBeCloseTo(0.5, 1);
+    expect(options.accentOpacity).toBeCloseTo(0.7, 2); // intensity 0.5 → opacity 0.7
   });
 
   it('debe mapear negativeRed a color', () => {

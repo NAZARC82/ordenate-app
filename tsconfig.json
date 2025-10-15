@@ -12,9 +12,16 @@
     "resolveJsonModule": true,
     "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "types": ["expo/types"],
-    "customConditions": []
+    "types": ["jest", "@testing-library/jest-native"],
+    "customConditions": [],
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
+  "include": [
+    "src",
+    "types/jest.d.ts",
+    "jest.setup.ts",
+    "jest.config.js"
+  ],
   "exclude": [
     "node_modules",
     "node_modules/**/*",
