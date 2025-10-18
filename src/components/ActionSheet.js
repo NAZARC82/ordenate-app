@@ -6,134 +6,168 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
-  Linking,
-  Share
+  Platform,
+  ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
+import { presentOpenWithSafely } from '../utils/openWith';
+import { deleteRecent } from '../features/documents/registry';
+import { goToPdfDesign } from '../navigation/navHelpers';
 
-const ActionSheet = ({ visible, onClose, fileUri, fileName, mimeType = 'application/pdf' }) => {
+const ActionSheet = ({ 
+  visible, 
+  onClose, 
+  fileUri, 
+  fileName, 
+  mimeType = 'application/pdf',
+  documentId, // ID del documento en Recientes para poder eliminarlo
+  navigation // Para navegar a DocumentManager/Diseño
+}) => {
   
-  // Compartir por WhatsApp
-  const handleWhatsAppShare = async () => {
-    try {
-      if (!fileUri) {
-        Alert.alert('Error', 'No hay archivo para compartir');
-        return;
-      }
-
-      // Usar el sharing nativo que puede detectar WhatsApp
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType,
-          dialogTitle: `Compartir ${fileName}`,
-          UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'public.comma-separated-values-text',
-        });
-      }
-      
-      onClose();
-    } catch (error) {
-      // Manejar cancelación sin mostrar error
-      if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
-        console.error('Error al compartir por WhatsApp:', error);
-        Alert.alert('Error', 'No se pudo compartir el archivo');
-      }
-      onClose();
-    }
-  };
-
-  // Enviar por email
-  const handleEmailShare = async () => {
-    try {
-      if (!fileUri) {
-        Alert.alert('Error', 'No hay archivo para compartir');
-        return;
-      }
-
-      // Usar Share API nativo
-      const result = await Share.share({
-        title: `Reporte - ${fileName}`,
-        message: 'Te adjunto el reporte financiero generado desde Ordenate App.',
-        url: fileUri,
-      }, {
-        subject: `Reporte Financiero - ${fileName}`,
-        dialogTitle: 'Enviar por email'
-      });
-
-      // Solo cerrar si no fue cancelado
-      if (result.action === Share.sharedAction) {
-        onClose();
-      } else if (result.action === Share.dismissedAction) {
-        // Cancelado por el usuario - no mostrar error
-        onClose();
-      }
-      
-    } catch (error) {
-      // Manejar cancelación sin mostrar error
-      if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
-        console.error('Error al compartir por email:', error);
-        Alert.alert('Error', 'No se pudo enviar el archivo por email');
-      }
-      onClose();
-    }
-  };
-
-  // Abrir con otras apps
+  // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
     try {
+      console.log('[ActionSheet] handleOpenWith iniciado');
+      console.log('[ActionSheet] fileUri:', fileUri);
+      console.log('[ActionSheet] mimeType:', mimeType);
+      
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
         return;
       }
 
-      // Usar sharing que mostrará opciones de apps
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType,
-          dialogTitle: 'Abrir con...',
-          UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'public.comma-separated-values-text',
-        });
+      console.log('[ActionSheet] Cerrando ActionSheet y esperando antes de Share Sheet...');
+      
+      // Cerrar el ActionSheet primero
+      onClose();
+      
+      // Usar presentOpenWithSafely con modal ya cerrado
+      const success = await presentOpenWithSafely({
+        uri: fileUri,
+        mime: mimeType,
+        setModalVisible: undefined // Ya cerramos el modal arriba
+      });
+
+      console.log('[ActionSheet] presentOpenWithSafely resultado:', success);
+      
+      if (success) {
+        console.log('[ActionSheet] ✓ Archivo compartido exitosamente');
       } else {
+        console.log('[ActionSheet] ⚠️ Usuario canceló o error al compartir');
+      }
+    } catch (error) {
+      console.error('[ActionSheet] Error en handleOpenWith:', error);
+      if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
+        Alert.alert('Error', 'No se pudo abrir el archivo');
+      }
+    }
+  };
+
+  // 📄 Ver en visor interno
+  const handleViewInternal = async () => {
+    try {
+      if (!fileUri) {
+        Alert.alert('Error', 'No hay archivo para visualizar');
+        return;
+      }
+
+      if (mimeType === 'application/pdf') {
+        // Para PDF, usar Print.printAsync que muestra el PDF en un visor
+        await Print.printAsync({ uri: fileUri });
+      } else {
+        // Para CSV u otros, mostrar alerta con info
         Alert.alert(
-          'No disponible',
-          'La función de compartir no está disponible en este dispositivo'
+          'Vista previa',
+          `Archivo: ${fileName}\n\nPara visualizar archivos CSV, usa la opción "Abrir con..." y selecciona una aplicación compatible (Excel, Google Sheets, etc.)`,
+          [{ text: 'OK' }]
         );
       }
       
       onClose();
     } catch (error) {
-      // Manejar cancelación sin mostrar error
-      if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
-        console.error('Error al abrir archivo:', error);
-        Alert.alert('Error', 'No se pudo abrir el archivo');
-      }
+      console.error('[ActionSheet] Error al ver archivo:', error);
+      Alert.alert('Error', 'No se pudo abrir el visor de documentos');
       onClose();
     }
   };
 
+  // 🗑 Eliminar de Recientes
+  const handleDelete = async () => {
+    if (!documentId) {
+      Alert.alert('Error', 'No se puede eliminar: ID de documento no disponible');
+      return;
+    }
+
+    Alert.alert(
+      '¿Eliminar de Recientes?',
+      `Se eliminará "${fileName}" de la lista de documentos recientes.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteRecent(documentId);
+              console.log('[ActionSheet] Documento eliminado de recientes:', documentId);
+              Alert.alert('✓', 'Documento eliminado de Recientes');
+              onClose();
+            } catch (error) {
+              console.error('[ActionSheet] Error al eliminar:', error);
+              Alert.alert('Error', 'No se pudo eliminar el documento');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 🎨 Modificar diseño de PDF (navegar a DocumentManager → Diseño)
+  const handleModifyDesign = () => {
+    console.log('[ActionSheet] Navegando a Diseño PDF');
+    onClose();
+    
+    // Usar helper de navegación centralizado para navegación anidada segura
+    goToPdfDesign();
+  };
+
   const actions = [
     {
-      id: 'whatsapp',
-      title: 'Compartir por WhatsApp',
-      icon: 'logo-whatsapp',
-      color: '#25D366',
-      onPress: handleWhatsAppShare
+      id: 'openwith',
+      title: 'Abrir con...',
+      icon: 'share-outline',
+      color: '#3E7D75',
+      onPress: handleOpenWith,
+      show: true
     },
     {
-      id: 'email',
-      title: 'Enviar por email',
-      icon: 'mail',
-      color: '#3498db',
-      onPress: handleEmailShare
+      id: 'view',
+      title: 'Ver en visor interno',
+      icon: mimeType === 'application/pdf' ? 'document-text' : 'grid',
+      color: '#6A5ACD',
+      onPress: handleViewInternal,
+      show: true
     },
     {
-      id: 'open',
-      title: 'Abrir en...',
-      icon: 'open',
-      color: '#9b59b6',
-      onPress: handleOpenWith
+      id: 'design',
+      title: '🎨 Modificar diseño (PDF)',
+      icon: 'color-palette-outline',
+      color: '#D35400',
+      onPress: handleModifyDesign,
+      show: mimeType === 'application/pdf' // Solo para PDFs
+    },
+    {
+      id: 'delete',
+      title: 'Eliminar de Recientes',
+      icon: 'trash-outline',
+      color: '#E74C3C',
+      onPress: handleDelete,
+      show: true
     }
   ];
 
@@ -155,18 +189,30 @@ const ActionSheet = ({ visible, onClose, fileUri, fileName, mimeType = 'applicat
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.handle} />
-            <Text style={styles.title}>Compartir archivo</Text>
-            <Text style={styles.subtitle}>{fileName}</Text>
+            <Text style={styles.title}>📄 {fileName}</Text>
+            <Text style={styles.subtitle}>
+              {mimeType === 'application/pdf' ? 'Documento PDF' : 'Archivo CSV'}
+            </Text>
+            <Text style={styles.uri} numberOfLines={1} ellipsizeMode="middle">
+              {fileUri}
+            </Text>
           </View>
 
-          {/* Actions */}
-          <View style={styles.actionsContainer}>
-            {actions.map((action) => (
+          {/* Actions con Scroll */}
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.actionsContainer}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={false}
+          >
+            {actions.filter(a => a.show).map((action) => (
               <TouchableOpacity
                 key={action.id}
                 style={styles.actionItem}
                 onPress={action.onPress}
                 activeOpacity={0.7}
+                testID={`action-${action.id}`}
               >
                 <View style={[styles.actionIcon, { backgroundColor: `${action.color}15` }]}>
                   <Ionicons 
@@ -183,7 +229,7 @@ const ActionSheet = ({ visible, onClose, fileUri, fileName, mimeType = 'applicat
                 />
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
 
           {/* Cancel Button */}
           <TouchableOpacity 
@@ -212,7 +258,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
-    maxHeight: '60%',
+    maxHeight: '80%', // Aumentado de 60% para más contenido
+  },
+  scrollView: {
+    maxHeight: '60%', // Limitar altura del scroll
   },
   header: {
     alignItems: 'center',
@@ -239,6 +288,14 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     paddingHorizontal: 20,
+    marginBottom: 4,
+  },
+  uri: {
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   actionsContainer: {
     paddingHorizontal: 20,

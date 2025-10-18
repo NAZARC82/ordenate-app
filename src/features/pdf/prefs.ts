@@ -26,6 +26,9 @@ export interface PdfPreferences {
   showMovementCount: boolean;
   showGenerationDate: boolean;
   
+  // Comportamiento post-exportación
+  showOpenWithAfterExport: boolean; // Mostrar "Abrir con..." automáticamente tras exportar
+  
   // Última actualización
   updatedAt: string;
 }
@@ -41,6 +44,7 @@ export const DEFAULT_PDF_PREFS: PdfPreferences = {
   negativeRed: 'strong',
   showMovementCount: true,
   showGenerationDate: true,
+  showOpenWithAfterExport: false, // Por defecto, no mostrar diálogo automático
   updatedAt: new Date().toISOString()
 };
 

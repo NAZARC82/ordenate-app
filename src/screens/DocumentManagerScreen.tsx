@@ -1,12 +1,16 @@
 // src/screens/DocumentManagerScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getRecents, RecentDoc } from '../features/documents/registry';
+import * as FileSystem from 'expo-file-system/legacy';
+import { getRecents, RecentDoc, deleteRecent, purgeMissing } from '../features/documents/registry';
 import { listSignatures, saveSignature, deleteSignature, Signature } from '../features/documents/signatures';
 import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
+import { openWith } from '../utils/openWith';
+import { getExportMeta } from '../utils/exportMeta';
+import { fileExists } from '../utils/fileExists';
 
-type Tab = 'recents' | 'signatures' | 'design';
+type Tab = 'signatures' | 'design'; // 'recents' eliminado
 
 // Paleta de colores disponibles
 const COLOR_PALETTE = [
@@ -20,11 +24,28 @@ const COLOR_PALETTE = [
   { hex: '#D35400', name: 'Naranja' },
 ];
 
-export default function DocumentManagerScreen() {
-  const [tab, setTab] = useState<Tab>('recents');
+export default function DocumentManagerScreen({ route }: any) {
+  // Soportar initialTab desde parámetros de navegación
+  const initialTab = route?.params?.initialTab || 'signatures';
+  const [tab, setTab] = useState<Tab>(initialTab as Tab);
   const [recents, setRecents] = useState<RecentDoc[]>([]);
   const [sigs, setSigs] = useState<Signature[]>([]);
   const { prefs, updatePrefs, reset, loading } = usePdfPrefs();
+
+  // Sincronizar tab si cambia el parámetro de navegación
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setTab(route.params.initialTab as Tab);
+    }
+  }, [route?.params?.initialTab]);
+
+  // 🚨 GUARD-RAIL: Este componente NO debe exportar
+  // Solo gestiona documentos ya existentes (abrir/compartir/borrar)
+  // Las exportaciones se disparan desde Historial, no desde Ajustes
+  useEffect(() => {
+    console.log('[DocumentManager] 📂 Pantalla de GESTIÓN (no export)');
+    console.log('[DocumentManager] Acciones: abrir/compartir/borrar existentes');
+  }, []);
 
   useEffect(() => {
     loadRecents();
@@ -91,17 +112,88 @@ export default function DocumentManagerScreen() {
     await updatePrefs({ negativeRed: value });
   };
 
+  const handleOpenWith = async (doc: RecentDoc) => {
+    console.log('[DocumentManager] handleOpenWith:', { id: doc.id, kind: doc.kind, uri: doc.uri });
+    
+    // Uses openWith() directly with existing file - NO regeneration
+    // Verificar que el archivo existe antes de intentar abrirlo (nueva API)
+    try {
+      const exists = await fileExists(doc.uri);
+      if (!exists) {
+        Alert.alert(
+          'Archivo no encontrado',
+          'El archivo ya no existe. Se eliminará de Recientes.',
+          [{ text: 'OK', onPress: async () => {
+            await deleteRecent(doc.id);
+            await loadRecents();
+          }}]
+        );
+        return;
+      }
+    } catch (err) {
+      console.error('[DocumentManager] Error verificando archivo:', err);
+      Alert.alert('Error', 'No se pudo verificar el archivo');
+      return;
+    }
+
+    // Usar exportMeta para obtener mimeType correcto
+    const { mime } = getExportMeta(doc.kind === 'csv' ? 'csv' : 'pdf');
+    console.log('[DocumentManager] Compartiendo con mime:', mime);
+    
+    const success = await openWith(doc.uri, mime, {
+      dialogTitle: `Abrir ${doc.kind.toUpperCase()} con...`
+    });
+    
+    if (!success) {
+      Alert.alert(
+        'No disponible',
+        'No se pudo abrir el selector de aplicaciones en este dispositivo.'
+      );
+    }
+  };
+
+  const handleDeleteRecent = async (doc: RecentDoc) => {
+    Alert.alert(
+      'Eliminar de Recientes',
+      `¿Eliminar "${doc.name}" de la lista de documentos recientes?\n\nNota: El archivo no se borrará del dispositivo.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteRecent(doc.id);
+            await loadRecents();
+            console.log(`[DocumentManager] Documento eliminado de recientes: ${doc.name}`);
+          }
+        }
+      ]
+    );
+  };
+
+  const handlePurgeMissing = async () => {
+    Alert.alert(
+      'Limpiar archivos inexistentes',
+      '¿Eliminar de Recientes todos los documentos cuyos archivos ya no existen?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpiar',
+          onPress: async () => {
+            const updated = await purgeMissing();
+            setRecents(updated);
+            Alert.alert('✓', 'Recientes actualizado');
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={s.container} testID="docmgr-root">
       {/* Tabs */}
       <View style={s.tabs}>
-        <TabBtn 
-          label="Recientes" 
-          icon="time-outline"
-          active={tab === 'recents'} 
-          onPress={() => setTab('recents')} 
-          testID="tab-recientes" 
-        />
+        {/* Tab de Recientes eliminado - solo lectura desde Historial */}
         <TabBtn 
           label="Firmas" 
           icon="create-outline"
@@ -118,42 +210,9 @@ export default function DocumentManagerScreen() {
         />
       </View>
 
-      {/* Contenido: Recientes */}
-      {tab === 'recents' && (
-        <ScrollView style={s.body} testID="recents-list" contentContainerStyle={s.bodyContent}>
-          <Text style={s.sectionTitle}>📄 Documentos Recientes</Text>
-          {recents.length === 0 && (
-            <View style={s.emptyState}>
-              <Ionicons name="document-outline" size={48} color="#ccc" />
-              <Text style={s.muted}>No hay documentos recientes</Text>
-              <Text style={s.mutedSmall}>Los PDF y CSV exportados aparecerán aquí</Text>
-            </View>
-          )}
-          {recents.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              style={s.row}
-              testID={`recent-${r.id}`}
-              onPress={() => {
-                Alert.alert(
-                  r.name,
-                  `Tipo: ${r.kind.toUpperCase()}\nURI: ${r.uri}`,
-                  [{ text: 'Cerrar' }]
-                );
-              }}
-            >
-              <View style={[s.tag, r.kind === 'pdf' ? s.tagPdf : s.tagCsv]}>
-                <Text style={s.tagText}>{r.kind.toUpperCase()}</Text>
-              </View>
-              <View style={s.rowContent}>
-                <Text style={s.name}>{r.name}</Text>
-                <Text style={s.date}>{new Date(r.ts).toLocaleDateString('es-UY')}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+      {/* Contenido: Recientes - ELIMINADO */}
+      {/* El tab de Recientes se eliminó. Los documentos se exportan y comparten 
+          directamente desde Historial usando ActionSheet */}
 
       {/* Contenido: Firmas */}
       {tab === 'signatures' && (
@@ -285,6 +344,27 @@ export default function DocumentManagerScreen() {
             </View>
           </View>
 
+          {/* Abrir con... automático */}
+          <View style={s.designSection}>
+            <View style={s.switchRow}>
+              <View style={s.switchLabelContainer}>
+                <Text style={s.label}>Abrir con... automático</Text>
+                <Text style={s.sublabel}>
+                  Mostrar selector de apps tras exportar PDF/CSV
+                </Text>
+              </View>
+              <Switch
+                value={prefs.showOpenWithAfterExport}
+                onValueChange={async (val) => {
+                  await updatePrefs({ showOpenWithAfterExport: val });
+                }}
+                testID="switch-open-with"
+                trackColor={{ false: '#ddd', true: '#3E7D75' }}
+                thumbColor={prefs.showOpenWithAfterExport ? '#fff' : '#f4f3f4'}
+              />
+            </View>
+          </View>
+
           {/* Restablecer */}
           <TouchableOpacity
             style={s.ghostBtn}
@@ -372,6 +452,26 @@ const s = StyleSheet.create({
     color: '#4D3527',
     marginBottom: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  purgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F5F5F5',
+  },
+  purgeBtnText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -404,6 +504,16 @@ const s = StyleSheet.create({
   rowContent: { flex: 1 },
   name: { fontSize: 15, fontWeight: '600', color: '#4D3527' },
   date: { fontSize: 12, color: '#999', marginTop: 2 },
+  openWithBtn: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#F0F7F6',
+  },
+  deleteBtn: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#FFE5E5',
+  },
   primaryBtn: {
     backgroundColor: '#3E7D75',
     flexDirection: 'row',
@@ -435,7 +545,6 @@ const s = StyleSheet.create({
   },
   sigImage: { width: 80, height: 40, backgroundColor: '#f9f9f9', borderRadius: 6 },
   sigContent: { flex: 1 },
-  deleteBtn: { padding: 8 },
   designSection: { marginBottom: 24 },
   label: { fontSize: 16, fontWeight: '700', color: '#4D3527', marginBottom: 4 },
   sublabel: { fontSize: 13, color: '#999', marginBottom: 12 },
@@ -502,6 +611,15 @@ const s = StyleSheet.create({
   },
   negativeBtnText: { fontSize: 14, fontWeight: '600', color: '#666' },
   negativeBtnTextActive: { color: '#3E7D75' },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  switchLabelContainer: {
+    flex: 1,
+  },
   ghostBtn: {
     flexDirection: 'row',
     alignItems: 'center',

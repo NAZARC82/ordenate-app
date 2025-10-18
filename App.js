@@ -8,6 +8,7 @@ import ReminderFormScreen from './src/screens/reminders/ReminderFormScreen';
 import RemindersListScreen from './src/screens/reminders/RemindersListScreen';
 import { MovimientosProvider } from './src/state/MovimientosContext';
 import * as Notifications from 'expo-notifications';
+import { navigationRef } from './src/navigation/navigationRef';
 
 // Temporal: Test del nuevo sistema de archivos
 import { runFileSystemTests } from './src/utils/testFs';
@@ -44,7 +45,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <MovimientosProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
               <RootStack.Screen 
                 name="Tabs" 

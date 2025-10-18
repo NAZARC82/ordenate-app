@@ -11,6 +11,7 @@ import { exportPDFColored } from '../utils/pdfExport'
 import { exportCSV } from '../utils/csvExport'
 import { buildExportName, getMovementsDateRange, isSingleDay, formatDateForFilename, buildSubtitle, fmtYMD } from '../utils/exportName'
 import { formatDate, formatCurrency } from '../utils/format'
+import ActionSheet from '../components/ActionSheet'
 
 export default function PantallaHistorial() {
   const { movimientos, updateMovimiento, removeMovimiento } = useMovimientos();
@@ -53,6 +54,10 @@ export default function PantallaHistorial() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Estados para ActionSheet
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [exportResult, setExportResult] = useState(null);
 
   // Manejar filtro inicial desde route.params
   useEffect(() => {
@@ -329,14 +334,24 @@ export default function PantallaHistorial() {
         ext: 'pdf'
       });
       
-      await exportPDFColored(movimientosParaExport, {
+      const result = await exportPDFColored(movimientosParaExport, {
         titulo: 'Reporte Corporativo Ordénate',
         subtitulo: filename
       });
       
+      // Mostrar ActionSheet si la exportación fue exitosa
+      if (result && result.success) {
+        setExportResult(result);
+        setActionSheetVisible(true);
+      } else {
+        const errorMsg = result?.message || 'No se pudo exportar el archivo PDF.';
+        Alert.alert('Error de Exportación', errorMsg);
+      }
+      
       // Limpiar selección si había
       if (selectedItems.size > 0) {
         setSelectedItems(new Set());
+        setSelectionMode(false);
       }
       
     } catch (error) {
@@ -406,11 +421,21 @@ export default function PantallaHistorial() {
         ext: 'csv'
       });
       
-      await exportCSV(movimientosParaExport, filename);
+      const result = await exportCSV(movimientosParaExport, filename);
+      
+      // Mostrar ActionSheet si la exportación fue exitosa
+      if (result && result.success) {
+        setExportResult(result);
+        setActionSheetVisible(true);
+      } else {
+        const errorMsg = result?.message || 'No se pudo exportar el archivo CSV.';
+        Alert.alert('Error de Exportación', errorMsg);
+      }
       
       // Limpiar selección si había
       if (selectedItems.size > 0) {
         setSelectedItems(new Set());
+        setSelectionMode(false);
       }
       
     } catch (error) {
@@ -421,6 +446,11 @@ export default function PantallaHistorial() {
     }
   };
 
+  // Manejar cierre del ActionSheet
+  const handleActionSheetClose = () => {
+    setActionSheetVisible(false);
+    setExportResult(null);
+  };
 
 
 
@@ -703,6 +733,17 @@ export default function PantallaHistorial() {
           </TouchableOpacity>
         </View>
       )}
+      
+      {/* ActionSheet para compartir documentos exportados */}
+      <ActionSheet
+        visible={actionSheetVisible}
+        onClose={handleActionSheetClose}
+        fileUri={exportResult?.fileUri}
+        fileName={exportResult?.fileName}
+        mimeType={exportResult?.mimeType}
+        documentId={exportResult?.documentId}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }

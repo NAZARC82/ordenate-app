@@ -14,7 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { exportPDFColored, generarVistaPreviaHTML } from '../utils/pdfExport';
 import { exportCSV } from '../utils/csvExport';
 import { useNavigation } from '@react-navigation/native';
@@ -817,6 +817,7 @@ const ExportOptionsModal = ({
       fileUri={exportResult?.fileUri}
       fileName={exportResult?.fileName}
       mimeType={exportResult?.mimeType}
+      documentId={exportResult?.documentId}
     />
   </>
   );

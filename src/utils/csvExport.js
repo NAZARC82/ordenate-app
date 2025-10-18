@@ -1,6 +1,8 @@
 import * as Sharing from 'expo-sharing';
 import { saveCSV, csvName } from './fs';
+import { saveCSVSafe } from './fs-safe'; // Nueva función segura
 import { formatDate, formatCurrency } from './format';
+import { getExportMeta, ensureFileName } from './exportMeta';
 
 /**
  * Escapa un campo CSV (manejar comas, comillas y saltos de línea)
@@ -138,16 +140,61 @@ export async function exportCSV(movimientos, opciones = {}) {
 
     const config = { contexto: 'reporte', includeHeaders: true, ...opciones };
     const csvContent = buildCSVContent(movimientos, config);
-    const fileName = generateCSVFileName({ ...config, cantidad: movimientos.length });
     
-    // Usar helper centralizado
-    const { uri: fileUri } = await saveCSV(fileName, csvContent);
-
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Exportar CSV - Ordenate' });
+    // ✅ VALIDAR contenido CSV
+    if (!csvContent || csvContent.length < 10) {
+      console.error('[exportCSV] Contenido CSV inválido o vacío');
+      return { success: false, error: 'Exportación vacía: no hay movimientos.' };
+    }
+    
+    const baseFileName = generateCSVFileName({ ...config, cantidad: movimientos.length });
+    
+    // ✅ Asegurar extensión y mimeType correctos
+    const { ext, mime } = getExportMeta('csv');
+    const fileName = ensureFileName(baseFileName, ext);
+    
+    console.log('[exportCSV] Guardando CSV con BOM UTF-8...');
+    
+    // ✅ USAR saveCSVSafe con BOM y verificación
+    const { uri: fileUri, exists } = await saveCSVSafe(fileName, csvContent);
+    
+    if (!exists) {
+      throw new Error('El archivo CSV no se creó correctamente');
     }
 
-    return { success: true, fileUri, fileName, message: `CSV exportado: ${movimientos.length} movimientos` };
+    // Registrar en documentos recientes
+    let documentId = null;
+    try {
+      const { addRecent } = require('../features/documents/registry');
+      documentId = `csv_${Date.now()}`;
+      await addRecent({
+        id: documentId,
+        kind: 'csv',
+        name: fileName,
+        uri: fileUri
+      });
+      console.log('[exportCSV] Registrado en recientes:', fileName);
+    } catch (err) {
+      console.warn('[exportCSV] No se pudo registrar en recientes:', err);
+    }
+
+    // ⚠️ YA NO SE COMPARTE AUTOMÁTICAMENTE
+    // El usuario decide qué hacer con el archivo desde el ActionSheet modal
+    // Se eliminaron:
+    // - Sharing.shareAsync automático
+    // - openWith automático (incluso con showOpenWithAfterExport)
+    // El archivo se guarda y registra en Recientes, nada más.
+
+    console.log('[exportCSV] ✅ Exportación completada exitosamente');
+
+    return { 
+      success: true, 
+      fileUri, 
+      fileName, 
+      message: `CSV exportado: ${movimientos.length} movimientos`,
+      mimeType: mime, // ✅ MIME correcto: text/csv
+      documentId // ID para poder eliminar de Recientes desde ActionSheet
+    };
   } catch (error) {
     console.error('Error en exportCSV:', error);
     return { success: false, error: error.message, technical: error.stack };

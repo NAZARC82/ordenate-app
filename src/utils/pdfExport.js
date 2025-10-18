@@ -1,9 +1,11 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { movePDF, pdfName } from './fs';
+import { movePDFSafe } from './fs-safe'; // Nueva función segura
 import pdfTheme from '../pdf/theme';
 import COLORS from '../theme/colors';
 import { formatDate, formatCurrency } from './format';
+import { getExportMeta, ensureFileName } from './exportMeta';
 
 // 🎨 COLORES VÁLIDOS PARA CSS - Parche para expo-print
 // Usar RGBA (no #RRGGBBAA) para que expo-print no los ignore
@@ -912,10 +914,11 @@ export async function exportPDFColored(movimientos, opciones = {}) {
 
     // Cargar preferencias de diseño de PDF (si existen)
     let builderOptions = null;
+    let prefs = null;
     try {
       const { getPdfPrefs } = require('../features/pdf/prefs');
       const { mapPrefsToPdfOptions } = require('../features/pdf/mapper');
-      const prefs = await getPdfPrefs();
+      prefs = await getPdfPrefs();
       builderOptions = mapPrefsToPdfOptions(prefs);
       console.log('[exportPDFColored] Aplicando preferencias de diseño:', builderOptions);
     } catch (err) {
@@ -930,8 +933,25 @@ export async function exportPDFColored(movimientos, opciones = {}) {
     };
 
     const htmlContent = buildPdfHtmlColored(movimientos, config);
-    const fileName = generatePDFFileName({ cantidad: movimientos.length, isStyled: true });
+    
+    // ✅ VALIDAR HTML antes de generar PDF
+    if (!htmlContent || htmlContent.length < 100) {
+      console.error('[exportPDFColored] HTML inválido o vacío');
+      return { success: false, error: 'Exportación vacía: no hay movimientos.' };
+    }
+    
+    if (htmlContent.length > 5000000) { // 5MB
+      console.warn('[exportPDFColored] HTML muy grande:', htmlContent.length);
+    }
+    
+    const baseFileName = generatePDFFileName({ cantidad: movimientos.length, isStyled: true });
+    
+    // ✅ Asegurar extensión y mimeType correctos
+    const { ext, mime } = getExportMeta('pdf');
+    const fileName = ensureFileName(baseFileName, ext);
 
+    console.log('[exportPDFColored] Generando PDF con Print.printToFileAsync...');
+    
     // CONFIGURACIÓN CON MÁRGENES 0 PARA FORZAR COLORES
     const { uri } = await Print.printToFileAsync({
       html: htmlContent,
@@ -939,22 +959,48 @@ export async function exportPDFColored(movimientos, opciones = {}) {
       margin: { top: 0, bottom: 0, left: 0, right: 0 } // sin márgenes para evitar recorte
     });
 
-    const { uri: finalUri } = await movePDF(uri, fileName);
+    console.log('[exportPDFColored] ✓ PDF generado, moviendo a ubicación final...');
 
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(finalUri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Compartir PDF Corporativo - Ordenate'
-      });
+    // ✅ USAR movePDFSafe con verificación
+    const { uri: finalUri, exists } = await movePDFSafe(uri, fileName);
+    
+    if (!exists) {
+      throw new Error('El archivo PDF no se creó correctamente');
     }
+
+    // Registrar en documentos recientes
+    let documentId = null;
+    try {
+      const { addRecent } = require('../features/documents/registry');
+      documentId = `pdf_${Date.now()}`;
+      await addRecent({
+        id: documentId,
+        kind: 'pdf',
+        name: fileName,
+        uri: finalUri
+      });
+      console.log('[exportPDFColored] Registrado en recientes:', fileName);
+    } catch (err) {
+      console.warn('[exportPDFColored] No se pudo registrar en recientes:', err);
+    }
+
+    // ⚠️ YA NO SE COMPARTE AUTOMÁTICAMENTE
+    // El usuario decide qué hacer con el archivo desde el ActionSheet modal
+    // Se eliminaron:
+    // - Sharing.shareAsync automático
+    // - openWith automático (incluso con showOpenWithAfterExport)
+    // El archivo se guarda y registra en Recientes, nada más.
+
+    console.log('[exportPDFColored] ✅ Exportación completada exitosamente');
 
     return { 
       success: true, 
       fileUri: finalUri,
       fileName,
       message: `PDF corporativo exportado: ${movimientos.length} movimientos`,
-      uri: finalUri
+      uri: finalUri,
+      mimeType: mime, // ✅ MIME correcto: application/pdf
+      documentId // ID para poder eliminar de Recientes desde ActionSheet
     };
 
   } catch (error) {
