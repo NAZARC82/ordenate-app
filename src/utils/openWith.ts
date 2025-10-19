@@ -73,31 +73,38 @@ export async function openWith(
     }
 
     console.log('[openWith] Compartiendo con opciones:', shareOptions);
+    console.log('[openWith] URI a compartir:', uri);
 
     // Compartir archivo con Share Sheet nativo
-    const result = await Sharing.shareAsync(uri, shareOptions);
+    console.log('[openWith] 🚀 Llamando a Sharing.shareAsync...');
+    await Sharing.shareAsync(uri, shareOptions);
     
-    console.log('[openWith] Resultado de shareAsync:', result);
-    console.log('[openWith] ✓ Archivo compartido exitosamente');
+    console.log('[openWith] ✅ shareAsync completado - El usuario interactuó con el Share Sheet');
+    console.log('[openWith] ✓ Share Sheet se presentó correctamente');
     return true;
 
   } catch (error: any) {
-    // No loguear error si el usuario canceló
-    if (error.code === 'ERR_CANCELED' || error.message?.includes('cancel')) {
-      console.log('[openWith] Usuario canceló el Share Sheet');
+    console.error('[openWith] ❌ Error capturado:', {
+      message: error.message,
+      code: error.code,
+      name: error.name
+    });
+    
+    // No mostrar alert si el usuario canceló
+    if (error.code === 'ERR_CANCELED' || 
+        error.code === 'E_SHARING_MIS_CANCEL' ||
+        error.code === 'CANCELLED' ||
+        error.message?.toLowerCase().includes('cancel') ||
+        error.message?.toLowerCase().includes('cancelled')) {
+      console.log('[openWith] ℹ️ Usuario canceló el Share Sheet (normal)');
       return false;
     }
     
-    console.error('[openWith] Error al compartir archivo:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    
-    // Mostrar alert al usuario
+    // Para otros errores, mostrar alert
+    console.error('[openWith] ⚠️ Error no manejado:', error);
     Alert.alert(
       'Error al compartir',
-      `No se pudo abrir el archivo: ${error.message || 'Error desconocido'}`,
+      `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}\n\nCódigo: ${error.code || 'N/A'}\n\nAsegúrate de que el archivo existe y tienes permisos para compartirlo.`,
       [{ text: 'OK' }]
     );
     

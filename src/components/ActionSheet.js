@@ -29,19 +29,26 @@ const ActionSheet = ({
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
     try {
+      console.log('[ActionSheet] ========================================');
       console.log('[ActionSheet] handleOpenWith iniciado');
       console.log('[ActionSheet] fileUri:', fileUri);
       console.log('[ActionSheet] mimeType:', mimeType);
+      console.log('[ActionSheet] ========================================');
       
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
         return;
       }
 
-      console.log('[ActionSheet] Cerrando ActionSheet y esperando antes de Share Sheet...');
-      
       // Cerrar el ActionSheet primero
+      console.log('[ActionSheet] Paso 1: Cerrando ActionSheet...');
       onClose();
+      
+      console.log('[ActionSheet] Paso 2: Esperando estabilización...');
+      // Esperar un momento antes de abrir Share Sheet
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('[ActionSheet] Paso 3: Llamando a presentOpenWithSafely...');
       
       // Usar presentOpenWithSafely con modal ya cerrado
       const success = await presentOpenWithSafely({
@@ -50,7 +57,9 @@ const ActionSheet = ({
         setModalVisible: undefined // Ya cerramos el modal arriba
       });
 
+      console.log('[ActionSheet] ========================================');
       console.log('[ActionSheet] presentOpenWithSafely resultado:', success);
+      console.log('[ActionSheet] ========================================');
       
       if (success) {
         console.log('[ActionSheet] ✓ Archivo compartido exitosamente');
@@ -58,9 +67,9 @@ const ActionSheet = ({
         console.log('[ActionSheet] ⚠️ Usuario canceló o error al compartir');
       }
     } catch (error) {
-      console.error('[ActionSheet] Error en handleOpenWith:', error);
+      console.error('[ActionSheet] ❌ Error en handleOpenWith:', error);
       if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
-        Alert.alert('Error', 'No se pudo abrir el archivo');
+        Alert.alert('Error', `No se pudo abrir el archivo: ${error.message}`);
       }
     }
   };

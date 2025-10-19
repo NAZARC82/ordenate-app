@@ -98,8 +98,13 @@ export async function movePDFSafe(
       size: (finalInfo as any).size || 'unknown'
     });
 
+    // Asegurar que el URI tiene prefijo file://
+    const normalizedUri = finalUri.startsWith('file://') 
+      ? finalUri 
+      : `file://${finalUri}`;
+
     return { 
-      uri: finalUri, 
+      uri: normalizedUri, 
       exists: true 
     };
   } catch (error) {
@@ -148,8 +153,13 @@ export async function saveCSVSafe(
       size: (info as any).size || 'unknown'
     });
 
+    // Asegurar que el URI tiene prefijo file://
+    const normalizedUri = finalUri.startsWith('file://') 
+      ? finalUri 
+      : `file://${finalUri}`;
+
     return { 
-      uri: finalUri, 
+      uri: normalizedUri, 
       exists: true 
     };
   } catch (error) {

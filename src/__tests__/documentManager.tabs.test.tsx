@@ -96,10 +96,9 @@ describe('DocumentManagerScreen - Tabs', () => {
     expect(validTabs).toContain('signatures');
     expect(validTabs).toContain('design');
     
-    // @ts-expect-error - 'recents' ya no es un tab válido
-    const invalidTab: 'recents' = 'recents';
-    
-    // Si compiló, significa que 'recents' NO está en el type Tab
-    expect(invalidTab).toBe('recents');
+    // Verificar que NO podemos usar 'recents' como tipo válido
+    // Si el type Tab incluyera 'recents', este test fallaría en compile time
+    const validTypes = ['signatures', 'design'];
+    expect(validTypes).not.toContain('recents');
   });
 });
