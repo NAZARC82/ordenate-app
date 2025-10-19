@@ -2,15 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
-import { getRecents, RecentDoc, deleteRecent, purgeMissing } from '../features/documents/registry';
 import { listSignatures, saveSignature, deleteSignature, Signature } from '../features/documents/signatures';
 import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
-import { openWith } from '../utils/openWith';
-import { getExportMeta } from '../utils/exportMeta';
-import { fileExists } from '../utils/fileExists';
 
-type Tab = 'signatures' | 'design'; // 'recents' eliminado
+type Tab = 'signatures' | 'design';
 
 // Paleta de colores disponibles
 const COLOR_PALETTE = [
@@ -28,7 +23,6 @@ export default function DocumentManagerScreen({ route }: any) {
   // Soportar initialTab desde parámetros de navegación
   const initialTab = route?.params?.initialTab || 'signatures';
   const [tab, setTab] = useState<Tab>(initialTab as Tab);
-  const [recents, setRecents] = useState<RecentDoc[]>([]);
   const [sigs, setSigs] = useState<Signature[]>([]);
   const { prefs, updatePrefs, reset, loading } = usePdfPrefs();
 
@@ -40,25 +34,16 @@ export default function DocumentManagerScreen({ route }: any) {
   }, [route?.params?.initialTab]);
 
   // 🚨 GUARD-RAIL: Este componente NO debe exportar
-  // Solo gestiona documentos ya existentes (abrir/compartir/borrar)
+  // Solo gestiona firmas y preferencias de diseño PDF
   // Las exportaciones se disparan desde Historial, no desde Ajustes
   useEffect(() => {
-    console.log('[DocumentManager] 📂 Pantalla de GESTIÓN (no export)');
-    console.log('[DocumentManager] Acciones: abrir/compartir/borrar existentes');
-  }, []);
-
-  useEffect(() => {
-    loadRecents();
+    console.log('[DocumentManager] 📂 Gestor de Documentos (Firmas + Diseño)');
+    console.log('[DocumentManager] Sin tab Recientes - exports solo desde Historial');
   }, []);
 
   useEffect(() => {
     loadSignatures();
   }, []);
-
-  const loadRecents = async () => {
-    const list = await getRecents();
-    setRecents(list);
-  };
 
   const loadSignatures = async () => {
     const list = await listSignatures();
@@ -112,88 +97,10 @@ export default function DocumentManagerScreen({ route }: any) {
     await updatePrefs({ negativeRed: value });
   };
 
-  const handleOpenWith = async (doc: RecentDoc) => {
-    console.log('[DocumentManager] handleOpenWith:', { id: doc.id, kind: doc.kind, uri: doc.uri });
-    
-    // Uses openWith() directly with existing file - NO regeneration
-    // Verificar que el archivo existe antes de intentar abrirlo (nueva API)
-    try {
-      const exists = await fileExists(doc.uri);
-      if (!exists) {
-        Alert.alert(
-          'Archivo no encontrado',
-          'El archivo ya no existe. Se eliminará de Recientes.',
-          [{ text: 'OK', onPress: async () => {
-            await deleteRecent(doc.id);
-            await loadRecents();
-          }}]
-        );
-        return;
-      }
-    } catch (err) {
-      console.error('[DocumentManager] Error verificando archivo:', err);
-      Alert.alert('Error', 'No se pudo verificar el archivo');
-      return;
-    }
-
-    // Usar exportMeta para obtener mimeType correcto
-    const { mime } = getExportMeta(doc.kind === 'csv' ? 'csv' : 'pdf');
-    console.log('[DocumentManager] Compartiendo con mime:', mime);
-    
-    const success = await openWith(doc.uri, mime, {
-      dialogTitle: `Abrir ${doc.kind.toUpperCase()} con...`
-    });
-    
-    if (!success) {
-      Alert.alert(
-        'No disponible',
-        'No se pudo abrir el selector de aplicaciones en este dispositivo.'
-      );
-    }
-  };
-
-  const handleDeleteRecent = async (doc: RecentDoc) => {
-    Alert.alert(
-      'Eliminar de Recientes',
-      `¿Eliminar "${doc.name}" de la lista de documentos recientes?\n\nNota: El archivo no se borrará del dispositivo.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteRecent(doc.id);
-            await loadRecents();
-            console.log(`[DocumentManager] Documento eliminado de recientes: ${doc.name}`);
-          }
-        }
-      ]
-    );
-  };
-
-  const handlePurgeMissing = async () => {
-    Alert.alert(
-      'Limpiar archivos inexistentes',
-      '¿Eliminar de Recientes todos los documentos cuyos archivos ya no existen?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Limpiar',
-          onPress: async () => {
-            const updated = await purgeMissing();
-            setRecents(updated);
-            Alert.alert('✓', 'Recientes actualizado');
-          }
-        }
-      ]
-    );
-  };
-
   return (
     <View style={s.container} testID="docmgr-root">
-      {/* Tabs */}
+      {/* Tabs: Firmas y Diseño */}
       <View style={s.tabs}>
-        {/* Tab de Recientes eliminado - solo lectura desde Historial */}
         <TabBtn 
           label="Firmas" 
           icon="create-outline"
@@ -209,10 +116,6 @@ export default function DocumentManagerScreen({ route }: any) {
           testID="tab-diseno" 
         />
       </View>
-
-      {/* Contenido: Recientes - ELIMINADO */}
-      {/* El tab de Recientes se eliminó. Los documentos se exportan y comparten 
-          directamente desde Historial usando ActionSheet */}
 
       {/* Contenido: Firmas */}
       {tab === 'signatures' && (
