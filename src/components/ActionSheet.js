@@ -14,7 +14,6 @@ import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { presentOpenWithSafely } from '../utils/openWith';
 import { deleteRecent } from '../features/documents/registry';
-import { goToPdfDesign } from '../navigation/navHelpers';
 
 const ActionSheet = ({ 
   visible, 
@@ -136,15 +135,7 @@ const ActionSheet = ({
     );
   };
 
-  // 🎨 Modificar diseño de PDF (navegar a DocumentManager → Diseño)
-  const handleModifyDesign = () => {
-    console.log('[ActionSheet] Navegando a Diseño PDF');
-    onClose();
-    
-    // Usar helper de navegación centralizado para navegación anidada segura
-    goToPdfDesign();
-  };
-
+  // Acciones disponibles (sin opción de modificar contenido post-export)
   const actions = [
     {
       id: 'openwith',
@@ -161,14 +152,6 @@ const ActionSheet = ({
       color: '#6A5ACD',
       onPress: handleViewInternal,
       show: true
-    },
-    {
-      id: 'design',
-      title: '🎨 Modificar diseño (PDF)',
-      icon: 'color-palette-outline',
-      color: '#D35400',
-      onPress: handleModifyDesign,
-      show: mimeType === 'application/pdf' // Solo para PDFs
     },
     {
       id: 'delete',
