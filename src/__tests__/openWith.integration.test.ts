@@ -107,17 +107,46 @@ describe('presentOpenWithSafely - Integration Tests', () => {
     expect(typeof presentOpenWithSafely).toBe('function');
   });
 
-  it('acepta los parámetros correctos', async () => {
+  it('acepta los parámetros correctos con kind=pdf', async () => {
     (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
     (Sharing.shareAsync as jest.Mock).mockResolvedValue({});
     
-    // No usar fake timers - dejar que funcione naturalmente
+    // Nueva API usa 'kind' en lugar de 'mime'
     const result = await presentOpenWithSafely({
       uri: 'file:///test.pdf',
-      mime: 'application/pdf',
+      kind: 'pdf',
     });
 
     expect(result).toBe(true);
+  });
+
+  it('acepta los parámetros correctos con kind=csv', async () => {
+    (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
+    (Sharing.shareAsync as jest.Mock).mockResolvedValue({});
+    
+    const result = await presentOpenWithSafely({
+      uri: 'file:///data.csv',
+      kind: 'csv',
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('usa kind=pdf por defecto si no se especifica', async () => {
+    (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
+    (Sharing.shareAsync as jest.Mock).mockResolvedValue({});
+    
+    const result = await presentOpenWithSafely({
+      uri: 'file:///test.pdf',
+    });
+
+    expect(result).toBe(true);
+    expect(Sharing.shareAsync).toHaveBeenCalledWith(
+      'file:///test.pdf',
+      expect.objectContaining({
+        mimeType: 'application/pdf', // Default es PDF
+      })
+    );
   });
 });
 

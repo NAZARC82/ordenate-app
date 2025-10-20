@@ -14,13 +14,14 @@
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Print from 'expo-print';
+import * as Print from 'expo-print'; // CORRECTO: Usado en pdfExport.js para generar PDF
 
 // Mock de expo-file-system
 jest.mock('expo-file-system', () => ({
   documentDirectory: 'file://mock/',
   writeAsStringAsync: jest.fn(() => Promise.resolve()),
   readAsStringAsync: jest.fn(() => Promise.resolve('')),
+  // getInfoAsync: Usado por fallback de fileExists() en fsExists.ts
   getInfoAsync: jest.fn(() => Promise.resolve({ 
     exists: true, 
     size: 1024, 
@@ -31,7 +32,7 @@ jest.mock('expo-file-system', () => ({
   makeDirectoryAsync: jest.fn(() => Promise.resolve()),
 }));
 
-// Mock de expo-print
+// Mock de expo-print (solo usado en pdfExport.js para generar PDF)
 jest.mock('expo-print', () => ({
   printToFileAsync: jest.fn(() => Promise.resolve({ 
     uri: 'file://mock/temp.pdf' 

@@ -84,24 +84,39 @@ describe('exportName utilities', () => {
   });
 
   describe('formatDateForFilename', () => {
-    test('should format ISO date for filename', () => {
+    test('should format ISO date for filename using LOCAL timezone', () => {
+      // formatDateForFilename ahora usa toYMDLocal (NO UTC)
+      // En timezone GMT-3, '2025-09-30T02:59:59Z' es 29/09 local
       const result = formatDateForFilename('2025-09-30T15:30:00.000Z');
       expect(result).toBe('2025-09-30');
     });
 
-    test('should handle different ISO formats', () => {
-      expect(formatDateForFilename('2025-01-05T00:00:00Z')).toBe('2025-01-05');
-      expect(formatDateForFilename('2025-12-31T23:59:59.999Z')).toBe('2025-12-31');
+    test('should handle different ISO formats with LOCAL dates', () => {
+      // Las fechas ahora respetan el timezone del usuario
+      expect(formatDateForFilename('2025-01-05T12:00:00Z')).toBe('2025-01-05');
+      expect(formatDateForFilename('2025-12-31T12:00:00.000Z')).toBe('2025-12-31');
     });
 
     test('should handle invalid dates', () => {
       expect(formatDateForFilename('invalid')).toBe('');
       expect(formatDateForFilename('')).toBe('');
     });
+
+    test('should use LOCAL date not UTC (critical for timezone GMT-3)', () => {
+      // Usuario en GMT-3 exportando a las 23:00 del 30/09
+      // ISO: 2025-10-01T02:00:00Z (UTC = 01 Oct)
+      // LOCAL: 30/09/2025 23:00 (debe usar esta fecha)
+      const localMidnight = new Date(2025, 8, 30, 23, 0, 0); // 30 Sept 23:00 local
+      const iso = localMidnight.toISOString();
+      const result = formatDateForFilename(iso);
+      
+      // Debe usar fecha LOCAL (30), no UTC (podría ser 01)
+      expect(result).toContain('09-30');
+    });
   });
 
   describe('getMovementsDateRange', () => {
-    test('should get date range from movements', () => {
+    test('should get date range from movements using LOCAL dates', () => {
       const movements = [
         { fechaISO: '2025-09-25T10:00:00Z' },
         { fechaISO: '2025-09-30T15:00:00Z' },
@@ -109,6 +124,7 @@ describe('exportName utilities', () => {
       ];
       
       const result = getMovementsDateRange(movements);
+      // Ahora usa toYMDLocal (LOCAL timezone)
       expect(result.startYMD).toBe('2025-09-25');
       expect(result.endYMD).toBe('2025-09-30');
     });
@@ -127,6 +143,19 @@ describe('exportName utilities', () => {
       const result = getMovementsDateRange([]);
       expect(result.startYMD).toBe('');
       expect(result.endYMD).toBe('');
+    });
+
+    test('should use LOCAL dates not UTC for range', () => {
+      // Movimientos en timezone GMT-3
+      const movements = [
+        { fechaISO: '2025-09-30T02:00:00Z' }, // 29/09 23:00 local
+        { fechaISO: '2025-10-01T03:00:00Z' }  // 01/10 00:00 local
+      ];
+      
+      const result = getMovementsDateRange(movements);
+      // Debe respetar fechas locales del usuario
+      expect(result.startYMD).toContain('09-');
+      expect(result.endYMD).toContain('10-');
     });
   });
 

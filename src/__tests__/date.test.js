@@ -1,10 +1,10 @@
-// src/__tests__/date.test.js
+﻿// src/__tests__/date.test.js
 /**
  * Unit tests for date utilities
  */
 
 import { 
-  todayLocalStart, 
+  todayLocal,        // CAMBIADO: ahora retorna noon (12:00) no midnight
   toYMDLocal, 
   parseYMDToLocal, 
   getDateString, 
@@ -13,30 +13,49 @@ import {
   getTodayISO,
   isValidISODate,
   getMonthString,
-  parseFechaUsuario
+  parseFechaUsuario,
+  formatLocalDate   // AGREGADO: nueva función para formateo local
 } from '../utils/date';
 
 describe('date utilities', () => {
   
-  describe('todayLocalStart', () => {
-    test('should return today at start of day', () => {
-      const today = todayLocalStart();
-      expect(today.getHours()).toBe(0);
+  describe('todayLocal', () => {
+    test('should return today at NOON (12:00) for DST safety', () => {
+      const today = todayLocal();
+      // CAMBIADO: ahora usa 12:00 (noon) en lugar de 00:00 (midnight)
+      // Esto evita problemas con DST (Daylight Saving Time)
+      expect(today.getHours()).toBe(12);
       expect(today.getMinutes()).toBe(0);
       expect(today.getSeconds()).toBe(0);
       expect(today.getMilliseconds()).toBe(0);
     });
+
+    test('should return a valid Date object', () => {
+      const today = todayLocal();
+      expect(today).toBeInstanceOf(Date);
+      expect(today.getTime()).not.toBeNaN();
+    });
   });
 
   describe('toYMDLocal', () => {
-    test('should format dates as YYYY-MM-DD', () => {
+    test('should format dates as YYYY-MM-DD using LOCAL timezone', () => {
       const date = new Date(2025, 8, 30); // September 30, 2025 (month is 0-indexed)
+      // CONFIRMADO: usa getFullYear(), getMonth(), getDate() (NO UTC)
       expect(toYMDLocal(date)).toBe('2025-09-30');
     });
 
     test('should handle single digit months and days', () => {
       const date = new Date(2025, 0, 5); // January 5, 2025
       expect(toYMDLocal(date)).toBe('2025-01-05');
+    });
+
+    test('should use LOCAL date not UTC', () => {
+      // En timezone GMT-3, crear fecha a las 23:00 local
+      const localDate = new Date(2025, 8, 30, 23, 0, 0);
+      const result = toYMDLocal(localDate);
+      
+      // Debe retornar fecha LOCAL (30), no UTC (que podría ser 01)
+      expect(result).toBe('2025-09-30');
     });
   });
 
@@ -98,12 +117,27 @@ describe('date utilities', () => {
       const result = getTodayString();
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
+
+    test('should use LOCAL date not UTC', () => {
+      const result = getTodayString();
+      const today = new Date();
+      const expected = toYMDLocal(today);
+      expect(result).toBe(expected);
+    });
   });
 
   describe('getTodayISO', () => {
-    test('should return today as ISO string at noon', () => {
+    test('should return today as ISO string at NOON (12:00)', () => {
       const result = getTodayISO();
+      // CAMBIADO: ahora usa todayLocal() que retorna 12:00, no 00:00
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T12:00:00\.\d{3}Z$/);
+    });
+
+    test('should be in valid ISO 8601 format', () => {
+      const result = getTodayISO();
+      const parsed = new Date(result);
+      expect(parsed.getTime()).not.toBeNaN();
+      expect(parsed.toISOString()).toBe(result);
     });
   });
 
@@ -135,7 +169,7 @@ describe('date utilities', () => {
   });
 
   describe('parseFechaUsuario', () => {
-    const testToday = new Date(2025, 8, 30); // September 30, 2025
+    const testToday = new Date(2025, 8, 30, 12, 0, 0); // September 30, 2025 NOON
 
     test('should parse dd/mm format with current year', () => {
       const result = parseFechaUsuario('25/09', testToday);
@@ -179,6 +213,32 @@ describe('date utilities', () => {
       const result = parseFechaUsuario('25 / 09 / 2025', testToday);
       expect(result.error).toBe(null);
       expect(result.displayValue).toBe('25/09/2025');
+    });
+  });
+  describe('formatLocalDate', () => {
+    test('should format date using Intl.DateTimeFormat with LOCAL timezone', () => {
+      const date = new Date(2025, 8, 30); // September 30, 2025
+      const result = formatLocalDate(date);
+      
+      // Formato depende del locale del sistema, pero debe contener elementos de fecha
+      expect(result).toBeTruthy();
+      expect(typeof result).toBe('string');
+    });
+
+    test('should use user locale', () => {
+      const date = new Date(2025, 0, 5); // January 5, 2025
+      const result = formatLocalDate(date);
+      
+      // Debe ser un string formateado válido
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    test('should handle valid dates', () => {
+      const today = todayLocal();
+      const result = formatLocalDate(today);
+      
+      expect(result).toBeTruthy();
+      expect(typeof result).toBe('string');
     });
   });
 });

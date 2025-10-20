@@ -1,21 +1,21 @@
 // __mocks__/expo-file-system.js
 
-// Mock de la clase File (nueva API de expo-file-system v19+)
+// Mock de la clase File (nueva API SDK 54+)
+// La propiedad 'exists' es sincrónica, no un método
 class MockFile {
   constructor(uri) {
     this.uri = uri;
+    // exists es una PROPIEDAD, no método
+    // Por defecto true, los tests pueden sobrescribir
+    this._exists = true;
   }
 
-  async getInfo() {
-    // Simular archivo existente por defecto
-    // Los tests individuales pueden sobrescribir este comportamiento
-    return {
-      exists: true,
-      size: 1024,
-      modificationTime: Date.now(),
-      uri: this.uri,
-      isDirectory: false
-    };
+  get exists() {
+    return this._exists;
+  }
+
+  set exists(value) {
+    this._exists = value;
   }
 
   async text() {
@@ -34,9 +34,10 @@ module.exports = {
   readAsStringAsync: jest.fn(() => Promise.resolve('')),
   deleteAsync: jest.fn(() => Promise.resolve()),
   
-  // getInfoAsync: API principal para verificar archivos
+  // getInfoAsync: DEPRECATED - usar File class
+  // Mantenido para tests legacy que aún no migraron
   getInfoAsync: jest.fn(() => Promise.resolve({ exists: true, size: 1024, isDirectory: false })),
   
-  // Nueva API File (para compatibilidad futura)
+  // Nueva API File SDK 54 (file.exists es propiedad)
   File: MockFile,
 };
