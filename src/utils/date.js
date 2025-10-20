@@ -1,6 +1,7 @@
 // src/utils/date.js
 /**
- * Utilities for date handling and timezone-safe comparisons
+ * Utilities for date handling with LOCAL timezone (no UTC)
+ * Todas las funciones trabajan con la zona horaria local del dispositivo
  */
 
 /**
@@ -14,15 +15,39 @@ export const todayLocalStart = () => {
 };
 
 /**
- * Convert Date to YYYY-MM-DD in UTC timezone (for consistency with tests)
+ * Get current date at noon local time (for exports)
+ * Anchored at 12:00 local to avoid DST edge cases
+ * @returns {Date} - Today at 12:00:00 local time
+ */
+export const todayLocal = () => {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return today;
+};
+
+/**
+ * Convert Date to YYYY-MM-DD using LOCAL timezone (NO UTC)
  * @param {Date} date - Date object
- * @returns {string} - Date in YYYY-MM-DD format (UTC)
+ * @returns {string} - Date in YYYY-MM-DD format (local)
  */
 export const toYMDLocal = (date) => {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+/**
+ * Format date for display using Intl (respects locale)
+ * @param {Date} date - Date object
+ * @returns {string} - Formatted date (e.g., "20 oct 2025")
+ */
+export const formatLocalDate = (date) => {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit'
+  }).format(date);
 };
 
 /**
@@ -78,18 +103,16 @@ export const sameDay = (iso1, iso2) => {
  * @returns {string} - Today's date in YYYY-MM-DD format
  */
 export const getTodayString = () => {
-  return toYMDLocal(todayLocalStart());
+  return toYMDLocal(todayLocal());
 };
 
 /**
- * Create ISO string for "today" at noon UTC
- * Prevents +1 day issues caused by UTC conversion
- * @returns {string} - Today's date as ISO string at noon UTC
+ * Create ISO string for "today" at noon LOCAL time
+ * Use this for creating new movimientos with today's date
+ * @returns {string} - Today's date as ISO string at noon LOCAL
  */
 export const getTodayISO = () => {
-  const today = new Date();
-  today.setUTCHours(12, 0, 0, 0); // Set to noon UTC
-  return today.toISOString();
+  return todayLocal().toISOString();
 };
 
 /**

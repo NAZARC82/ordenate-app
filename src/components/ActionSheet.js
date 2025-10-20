@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // Legacy API para leer CSV
+import { fileExists } from '../utils/fsExists'; // ✅ API nueva con fallback
 import { presentOpenWithSafely } from '../utils/openWith';
 import { deleteRecent } from '../features/documents/registry';
 
@@ -84,9 +85,9 @@ const ActionSheet = ({
 
       console.log('[ActionSheet] Ver interno iniciado:', { fileUri, mimeType });
 
-      // Verificar que el archivo existe
-      const info = await FileSystem.getInfoAsync(fileUri);
-      if (!info.exists) {
+      // ✅ Verificar que el archivo existe (API nueva con fallback)
+      const exists = await fileExists(fileUri);
+      if (!exists) {
         Alert.alert('Archivo no encontrado', 'El documento no está disponible.');
         onClose();
         return;
@@ -103,7 +104,7 @@ const ActionSheet = ({
         });
         console.log('[ActionSheet] ✓ PDF abierto exitosamente');
       } else if (mimeType === 'text/csv') {
-        // Para CSV, leer contenido y mostrar preview
+        // Para CSV, leer contenido y mostrar preview (usa legacy API para lectura)
         console.log('[ActionSheet] Leyendo CSV...');
         const content = await FileSystem.readAsStringAsync(fileUri);
         const preview = content.slice(0, 500);
@@ -124,7 +125,12 @@ const ActionSheet = ({
       onClose();
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
-      Alert.alert('Error', `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}`);
+      // ❌ NO loguear warnings de deprecación como errores
+      const isDeprecationWarning = error.message?.includes('deprecated') || 
+                                    error.message?.includes('You can migrate');
+      if (!isDeprecationWarning) {
+        Alert.alert('Error', `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}`);
+      }
       onClose();
     }
   };

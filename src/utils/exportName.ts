@@ -1,4 +1,5 @@
 // src/utils/exportName.ts
+import { toYMDLocal, todayLocal, formatLocalDate } from './date';
 
 interface ExportNameParams {
   activeTab: 'todos' | 'pagos' | 'cobros';
@@ -78,16 +79,15 @@ const sanitizeFileName = (name: string): string => {
 };
 
 /**
- * Convierte una fecha ISO a formato YYYY-MM-DD usando UTC
+ * Convierte una fecha ISO a formato YYYY-MM-DD usando HORA LOCAL
+ * ✅ Usa toYMDLocal() que NO usa UTC
  */
 export const formatDateForFilename = (isoString: string): string => {
   try {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return ''; // Invalid date
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // ✅ Usar fecha LOCAL, NO UTC
+    return toYMDLocal(date);
   } catch (error) {
     console.warn('Error formateando fecha para filename:', isoString, error);
     return '';
@@ -105,7 +105,7 @@ export const fmtYMD = (ymd: string): string => {
 };
 
 /**
- * Obtiene el rango de fechas de una lista de movimientos
+ * Obtiene el rango de fechas de una lista de movimientos (LOCAL)
  */
 export const getMovementsDateRange = (movements: Array<{ fechaISO: string }>): {
   startYMD: string;
@@ -123,6 +123,7 @@ export const getMovementsDateRange = (movements: Array<{ fechaISO: string }>): {
   const startDate = sortedDates[0];
   const endDate = sortedDates[sortedDates.length - 1];
 
+  // ✅ Usar formatDateForFilename que usa fecha LOCAL
   return {
     startYMD: formatDateForFilename(startDate.toISOString()),
     endYMD: formatDateForFilename(endDate.toISOString())
