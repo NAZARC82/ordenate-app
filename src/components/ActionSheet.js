@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import * as Print from 'expo-print';
+import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system';
 import { presentOpenWithSafely } from '../utils/openWith';
 import { deleteRecent } from '../features/documents/registry';
 
@@ -81,14 +82,41 @@ const ActionSheet = ({
         return;
       }
 
+      console.log('[ActionSheet] Ver interno iniciado:', { fileUri, mimeType });
+
+      // Verificar que el archivo existe
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (!info.exists) {
+        Alert.alert('Archivo no encontrado', 'El documento no está disponible.');
+        onClose();
+        return;
+      }
+
       if (mimeType === 'application/pdf') {
-        // Para PDF, usar Print.printAsync que muestra el PDF en un visor
-        await Print.printAsync({ uri: fileUri });
+        // Para PDF, usar WebBrowser (estable en archivos persistentes)
+        console.log('[ActionSheet] Abriendo PDF con WebBrowser...');
+        await WebBrowser.openBrowserAsync(fileUri, {
+          controlsColor: '#3E7D75',
+          toolbarColor: '#FCFCF8',
+          enableBarCollapsing: false,
+          showTitle: true,
+        });
+        console.log('[ActionSheet] ✓ PDF abierto exitosamente');
+      } else if (mimeType === 'text/csv') {
+        // Para CSV, leer contenido y mostrar preview
+        console.log('[ActionSheet] Leyendo CSV...');
+        const content = await FileSystem.readAsStringAsync(fileUri);
+        const preview = content.slice(0, 500);
+        Alert.alert(
+          '📊 Vista previa CSV',
+          `${preview}${content.length > 500 ? '\n\n...' : ''}\n\nPara ver el archivo completo, usa "Abrir con..." y selecciona Excel, Google Sheets, etc.`,
+          [{ text: 'OK' }]
+        );
       } else {
-        // Para CSV u otros, mostrar alerta con info
+        // Otros tipos
         Alert.alert(
           'Vista previa',
-          `Archivo: ${fileName}\n\nPara visualizar archivos CSV, usa la opción "Abrir con..." y selecciona una aplicación compatible (Excel, Google Sheets, etc.)`,
+          `Archivo: ${fileName}\n\nUsa "Abrir con..." para abrir este tipo de archivo.`,
           [{ text: 'OK' }]
         );
       }
@@ -96,7 +124,7 @@ const ActionSheet = ({
       onClose();
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
-      Alert.alert('Error', 'No se pudo abrir el visor de documentos');
+      Alert.alert('Error', `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}`);
       onClose();
     }
   };

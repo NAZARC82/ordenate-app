@@ -162,9 +162,9 @@ export async function presentOpenWithSafely({
       });
     });
     
-    // Delay adicional de 400ms (aumentado) para asegurar que todo esté listo
-    console.log('[presentOpenWithSafely] Esperando 400ms para estabilización...');
-    await new Promise(resolve => setTimeout(resolve, 400));
+    // Delay adicional de 300ms (optimizado) para asegurar que todo esté listo
+    console.log('[presentOpenWithSafely] Esperando 300ms para estabilización...');
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     // Verificar que el archivo existe antes de abrir Share Sheet
     console.log('[presentOpenWithSafely] Verificando existencia del archivo...');
