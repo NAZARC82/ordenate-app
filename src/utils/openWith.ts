@@ -1,9 +1,23 @@
 // src/utils/openWith.ts
-// Helper para abrir archivos con aplicaciones externas
+// Helper para compartir archivos con Share Sheet nativo
 
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
+import * as FS from 'expo-file-system/legacy'; // Solo para readAsStringAsync
 import { Platform, InteractionManager, Alert } from 'react-native';
 import { fileExists } from './fsExists';
+
+// MIME types estándar
+const MIME = {
+  pdf: 'application/pdf',
+  csv: 'text/csv',
+} as const;
+
+// iOS UTI para mejor compatibilidad
+const UTI_MAP = {
+  pdf: 'com.adobe.pdf',
+  csv: 'public.comma-separated-values-text',
+} as const;
 
 export interface OpenWithOptions {
   dialogTitle?: string;
@@ -13,19 +27,16 @@ export interface OpenWithOptions {
  * Obtiene el UTI correcto para iOS según el mimeType
  */
 function getUTI(mimeType: string): string {
-  switch (mimeType) {
-    case 'application/pdf':
-      return 'com.adobe.pdf';
-    case 'text/csv':
-      return 'public.comma-separated-values-text';
-    default:
-      return mimeType;
-  }
+  if (mimeType === MIME.pdf) return UTI_MAP.pdf;
+  if (mimeType === MIME.csv) return UTI_MAP.csv;
+  return mimeType;
 }
 
 /**
  * Abre un archivo con el selector nativo de aplicaciones "Abrir con..."
- * @param uri URI del archivo a compartir (puede ser file:// o content://)
+ * Si sharing no está disponible, usa fallback a WebBrowser o preview
+ * 
+ * @param uri URI del archivo a compartir (debe ser file://)
  * @param mimeType Tipo MIME del archivo ('application/pdf', 'text/csv', etc.)
  * @param options Opciones adicionales (título del diálogo, etc.)
  * @returns true si se compartió exitosamente, false si no está disponible o hubo error
@@ -55,7 +66,30 @@ export async function openWith(
     console.log('[openWith] Sharing disponible:', isAvailable);
     
     if (!isAvailable) {
-      console.warn('[openWith] Sharing no está disponible en esta plataforma');
+      // ✅ FALLBACK: usar WebBrowser para PDF, preview para CSV
+      console.log('[openWith] Sharing no disponible, usando fallback...');
+      
+      if (mimeType === MIME.pdf) {
+        console.log('[openWith] Abriendo PDF en WebBrowser...');
+        await WebBrowser.openBrowserAsync(uri, {
+          controlsColor: '#3E7D75',
+          toolbarColor: '#FCFCF8',
+          enableBarCollapsing: false,
+          showTitle: true,
+        });
+        return true;
+      } else if (mimeType === MIME.csv) {
+        console.log('[openWith] Mostrando preview CSV...');
+        const content = await FS.readAsStringAsync(uri);
+        const preview = content.slice(0, 1000);
+        Alert.alert(
+          'CSV (vista rápida)', 
+          `${preview}${content.length > 1000 ? '\n\n...' : ''}\n\nUsa "Abrir con..." para abrir en Excel, Sheets, etc.`,
+          [{ text: 'OK' }]
+        );
+        return true;
+      }
+      
       return false;
     }
 
@@ -64,7 +98,7 @@ export async function openWith(
       mimeType,
     };
 
-    // En iOS, usar UTI en lugar de dialogTitle
+    // En iOS, usar UTI para mejor compatibilidad (especialmente CSV)
     if (Platform.OS === 'ios') {
       shareOptions.UTI = getUTI(mimeType);
     } else {
@@ -104,7 +138,7 @@ export async function openWith(
     console.error('[openWith] ⚠️ Error no manejado:', error);
     Alert.alert(
       'Error al compartir',
-      `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}\n\nCódigo: ${error.code || 'N/A'}\n\nAsegúrate de que el archivo existe y tienes permisos para compartirlo.`,
+      `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}\n\nCódigo: ${error.code || 'N/A'}`,
       [{ text: 'OK' }]
     );
     
@@ -116,7 +150,7 @@ export async function openWith(
  * Helper específico para abrir PDFs
  */
 export async function openPDF(uri: string, title?: string): Promise<boolean> {
-  return openWith(uri, 'application/pdf', { 
+  return openWith(uri, MIME.pdf, { 
     dialogTitle: title || 'Abrir PDF con...' 
   });
 }
@@ -125,31 +159,36 @@ export async function openPDF(uri: string, title?: string): Promise<boolean> {
  * Helper específico para abrir CSVs
  */
 export async function openCSV(uri: string, title?: string): Promise<boolean> {
-  return openWith(uri, 'text/csv', { 
+  return openWith(uri, MIME.csv, { 
     dialogTitle: title || 'Abrir CSV con...' 
   });
 }
 
 /**
- * Presentación segura: cerrar modal antes y esperar 250ms
+ * Presentación segura: cerrar modal antes, delay corto, verificar existencia
  * Evita conflicto en iOS donde no se pueden tener dos modales simultáneos
+ * 
+ * @param uri URI del archivo (debe existir en file system)
+ * @param kind Tipo de archivo ('pdf' o 'csv')
+ * @param closeModal Función opcional para cerrar modal antes de compartir
+ * @returns true si se compartió exitosamente
  */
 export async function presentOpenWithSafely({
   uri,
-  mime,
-  setModalVisible,
+  kind = 'pdf',
+  closeModal,
 }: {
   uri: string;
-  mime: string;
-  setModalVisible?: (v: boolean) => void;
+  kind?: 'pdf' | 'csv';
+  closeModal?: () => void;
 }): Promise<boolean> {
   try {
     console.log('[presentOpenWithSafely] Iniciando preparación para Share Sheet');
     
-    // Cerrar modal si existe (opcional ahora)
-    if (setModalVisible) {
+    // Cerrar modal si existe
+    if (closeModal) {
       console.log('[presentOpenWithSafely] Cerrando modal proporcionado...');
-      setModalVisible(false);
+      closeModal();
     } else {
       console.log('[presentOpenWithSafely] No hay modal para cerrar (ya cerrado)');
     }
@@ -162,11 +201,11 @@ export async function presentOpenWithSafely({
       });
     });
     
-    // Delay adicional de 300ms (optimizado) para asegurar que todo esté listo
+    // ✅ Delay optimizado: 300ms (total 300-600ms dependiendo de animaciones)
     console.log('[presentOpenWithSafely] Esperando 300ms para estabilización...');
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Verificar que el archivo existe antes de abrir Share Sheet
+    // ✅ Verificar que el archivo existe ANTES de abrir Share Sheet
     console.log('[presentOpenWithSafely] Verificando existencia del archivo...');
     const exists = await fileExists(uri);
     
@@ -181,6 +220,9 @@ export async function presentOpenWithSafely({
     }
     
     console.log('[presentOpenWithSafely] ✓ Archivo existe, abriendo Share Sheet...');
+    
+    // Determinar MIME correcto
+    const mime = kind === 'csv' ? MIME.csv : MIME.pdf;
     
     // Ahora sí, abrir el Share Sheet
     const result = await openWith(uri, mime);

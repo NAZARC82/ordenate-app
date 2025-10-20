@@ -51,11 +51,12 @@ const ActionSheet = ({
       
       console.log('[ActionSheet] Paso 3: Llamando a presentOpenWithSafely...');
       
-      // Usar presentOpenWithSafely con modal ya cerrado
+      // ✅ Usar presentOpenWithSafely con nuevo signature (kind en lugar de mime)
+      const kind = mimeType === 'text/csv' ? 'csv' : 'pdf';
       const success = await presentOpenWithSafely({
         uri: fileUri,
-        mime: mimeType,
-        setModalVisible: undefined // Ya cerramos el modal arriba
+        kind,
+        closeModal: undefined // Ya cerramos el modal arriba
       });
 
       console.log('[ActionSheet] ========================================');
