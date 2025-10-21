@@ -365,7 +365,8 @@ const ExportOptionsModal = ({
         
         setExportResult({ 
           success: true, 
-          uri: zipUri, 
+          fileUri: zipUri,  // ActionSheet espera fileUri, no uri
+          uri: zipUri,      // Mantener por compatibilidad
           fileName: zipName,
           mimeType: 'application/zip'
         });
