@@ -7,7 +7,7 @@ import * as Print from 'expo-print';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { Platform, Alert } from 'react-native';
 
-export type OpenKind = 'pdf' | 'csv';
+export type OpenKind = 'pdf' | 'csv' | 'zip';
 
 /**
  * Normaliza una URI de archivo:
@@ -49,6 +49,16 @@ export async function viewInternallySafely(rawUri: string, kind: OpenKind): Prom
 
     if (Platform.OS === 'ios') {
       // iOS: usar el visor nativo de impresión como preview
+      // ⚠️ ZIP no soporta vista previa con Print, usar Sharing directamente
+      if (kind === 'zip') {
+        console.log('[viewInternallySafely] iOS: ZIP no soporta Print, usando Sharing...');
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/zip',
+          dialogTitle: 'Compartir archivo ZIP',
+        });
+        return;
+      }
+      
       console.log('[viewInternallySafely] iOS: usando Print.printAsync...');
       try {
         await Print.printAsync({ uri });
@@ -70,12 +80,17 @@ export async function viewInternallySafely(rawUri: string, kind: OpenKind): Prom
     const contentUri = await FileSystem.getContentUriAsync(uri);
     console.log('[viewInternallySafely] Content URI:', contentUri);
     
+    // Determinar MIME type correcto
+    const mimeType = kind === 'csv' ? 'text/csv' : 
+                     kind === 'zip' ? 'application/zip' : 
+                     'application/pdf';
+    
     try {
       console.log('[viewInternallySafely] Lanzando Intent VIEW...');
       await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: contentUri,
         flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-        type: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        type: mimeType,
       });
       console.log('[viewInternallySafely] ✓ Intent lanzado exitosamente');
       return;
@@ -83,7 +98,7 @@ export async function viewInternallySafely(rawUri: string, kind: OpenKind): Prom
       console.warn('[viewInternallySafely] Intent falló, usando fallback Sharing...', intentError);
       // fallback a compartir si no hay visor
       await Sharing.shareAsync(uri, {
-        mimeType: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        mimeType,
         dialogTitle: 'Compartir archivo',
       });
     }
@@ -125,8 +140,12 @@ export async function presentOpenWithSafely(rawUri: string, kind: OpenKind): Pro
     if (await Sharing.isAvailableAsync()) {
       console.log('[presentOpenWithSafely] Usando Sharing.shareAsync...');
       
+      const mimeType = kind === 'csv' ? 'text/csv' : 
+                       kind === 'zip' ? 'application/zip' : 
+                       'application/pdf';
+      
       const shareOptions: any = {
-        mimeType: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        mimeType,
         dialogTitle: 'Compartir archivo',
       };
       
@@ -134,6 +153,8 @@ export async function presentOpenWithSafely(rawUri: string, kind: OpenKind): Pro
       if (Platform.OS === 'ios') {
         shareOptions.UTI = kind === 'csv'
           ? 'public.comma-separated-values-text'
+          : kind === 'zip'
+          ? 'public.zip-archive'
           : 'com.adobe.pdf';
       }
       
@@ -148,17 +169,19 @@ export async function presentOpenWithSafely(rawUri: string, kind: OpenKind): Pro
     if (Platform.OS === 'android') {
       console.log('[presentOpenWithSafely] Android fallback: usando Intent SEND...');
       const contentUri = await FileSystem.getContentUriAsync(uri);
+      const mimeType = kind === 'csv' ? 'text/csv' : 
+                       kind === 'zip' ? 'application/zip' : 
+                       'application/pdf';
       await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
         data: contentUri,
         flags: 1,
-        type: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        type: mimeType,
       });
     } else {
+      const fileType = kind === 'csv' ? 'CSV' : kind === 'zip' ? 'ZIP' : 'PDF';
       Alert.alert(
         'Vista previa',
-        kind === 'csv'
-          ? 'CSV generado correctamente. Usa "Compartir" para enviarlo.'
-          : 'PDF generado correctamente. Usa "Compartir" para enviarlo.'
+        `${fileType} generado correctamente. Usa "Compartir" para enviarlo.`
       );
     }
   } catch (err: any) {

@@ -125,7 +125,7 @@ export function useExportModalPresets(options?: {
 }
 
 /**
- * Mostrar toast post-exportación con acción de abrir
+ * Mostrar toast con botón "Abrir" después de exportar
  * 
  * @param fileName - Nombre del archivo exportado
  * @param fileUri - URI del archivo
@@ -137,7 +137,7 @@ export function useExportModalPresets(options?: {
 export async function showPostExportToast(
   fileName: string,
   fileUri: string,
-  kind: 'pdf' | 'csv' = 'pdf'
+  kind: 'pdf' | 'csv' | 'zip' = 'pdf'
 ): Promise<void> {
   showExportToast(fileName, async () => {
     // Abrir archivo al presionar "Abrir"

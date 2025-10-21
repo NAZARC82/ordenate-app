@@ -361,7 +361,7 @@ const ExportOptionsModal = ({
         });
         
         const zipName = `${baseName}.zip`;
-        await showPostExportToast(zipName, zipUri, 'pdf');
+        await showPostExportToast(zipName, zipUri, 'zip'); // ✅ Correcto: tipo 'zip'
         
         setExportResult({ 
           success: true, 
@@ -374,13 +374,13 @@ const ExportOptionsModal = ({
       } 
       // Si solo PDF
       else if (exportFormat === 'pdf' && pdfResult?.success) {
-        await showPostExportToast(pdfResult.fileName, pdfResult.uri, 'pdf');
+        await showPostExportToast(pdfResult.fileName, pdfResult.fileUri, 'pdf');
         setExportResult(pdfResult);
         setActionSheetVisible(true);
       }
       // Si solo CSV
       else if (exportFormat === 'csv' && csvResult?.success) {
-        await showPostExportToast(csvResult.fileName, csvResult.uri, 'csv');
+        await showPostExportToast(csvResult.fileName, csvResult.fileUri, 'csv');
         setExportResult(csvResult);
         setActionSheetVisible(true);
       }

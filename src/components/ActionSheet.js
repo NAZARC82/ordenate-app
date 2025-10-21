@@ -44,8 +44,12 @@ const ActionSheet = ({
       // Esperar un momento antes de abrir Share Sheet
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Determinar tipo de archivo
-      const kind = mimeType === 'text/csv' ? 'csv' : 'pdf';
+      // Determinar tipo de archivo basado en mimeType
+      const kind = mimeType === 'text/csv' ? 'csv' : 
+                   mimeType === 'application/zip' ? 'zip' : 
+                   'pdf';
+      
+      console.log('[ActionSheet] Tipo detectado:', kind, 'para mimeType:', mimeType);
       
       // Usar nueva API simplificada
       await presentOpenWithSafely(fileUri, kind);
@@ -73,8 +77,12 @@ const ActionSheet = ({
       // Esperar un momento para estabilización
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Determinar tipo de archivo
-      const kind = mimeType === 'text/csv' ? 'csv' : 'pdf';
+      // Determinar tipo de archivo basado en mimeType
+      const kind = mimeType === 'text/csv' ? 'csv' : 
+                   mimeType === 'application/zip' ? 'zip' : 
+                   'pdf';
+      
+      console.log('[ActionSheet] Vista interna - Tipo detectado:', kind, 'para mimeType:', mimeType);
       
       // Usar nueva API de visor interno seguro por plataforma
       await viewInternallySafely(fileUri, kind);
