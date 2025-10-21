@@ -141,10 +141,7 @@ export async function showPostExportToast(
 ): Promise<void> {
   showExportToast(fileName, async () => {
     // Abrir archivo al presionar "Abrir"
-    await presentOpenWithSafely({
-      uri: fileUri,
-      kind,
-    });
+    await presentOpenWithSafely(fileUri, kind);
   });
 }
 

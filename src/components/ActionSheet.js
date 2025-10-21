@@ -11,10 +11,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
 import * as FileSystem from 'expo-file-system/legacy'; // Legacy API para leer CSV
 import { fileExists } from '../utils/fsExists'; // ✅ API nueva con fallback
-import { presentOpenWithSafely } from '../utils/openWith';
+import { presentOpenWithSafely, viewInternallySafely } from '../utils/openWith';
 import { deleteRecent } from '../features/documents/registry';
 import { showToast } from '../utils/toast';
 
@@ -31,11 +30,8 @@ const ActionSheet = ({
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
     try {
-      console.log('[ActionSheet] ========================================');
       console.log('[ActionSheet] handleOpenWith iniciado');
-      console.log('[ActionSheet] fileUri:', fileUri);
-      console.log('[ActionSheet] mimeType:', mimeType);
-      console.log('[ActionSheet] ========================================');
+      console.log('[ActionSheet] fileUri:', fileUri, 'mimeType:', mimeType);
       
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
@@ -43,37 +39,21 @@ const ActionSheet = ({
       }
 
       // Cerrar el ActionSheet primero
-      console.log('[ActionSheet] Paso 1: Cerrando ActionSheet...');
       onClose();
       
-      console.log('[ActionSheet] Paso 2: Esperando estabilización...');
       // Esperar un momento antes de abrir Share Sheet
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      console.log('[ActionSheet] Paso 3: Llamando a presentOpenWithSafely...');
-      
-      // ✅ Usar presentOpenWithSafely con nuevo signature (kind en lugar de mime)
+      // Determinar tipo de archivo
       const kind = mimeType === 'text/csv' ? 'csv' : 'pdf';
-      const success = await presentOpenWithSafely({
-        uri: fileUri,
-        kind,
-        closeModal: undefined // Ya cerramos el modal arriba
-      });
-
-      console.log('[ActionSheet] ========================================');
-      console.log('[ActionSheet] presentOpenWithSafely resultado:', success);
-      console.log('[ActionSheet] ========================================');
       
-      if (success) {
-        console.log('[ActionSheet] ✓ Archivo compartido exitosamente');
-      } else {
-        console.log('[ActionSheet] ⚠️ Usuario canceló o error al compartir');
-      }
+      // Usar nueva API simplificada
+      await presentOpenWithSafely(fileUri, kind);
+      
+      console.log('[ActionSheet] ✓ presentOpenWithSafely completado');
     } catch (error) {
-      console.error('[ActionSheet] ❌ Error en handleOpenWith:', error);
-      if (error.code !== 'UserCancel' && !error.message?.includes('cancelled')) {
-        Alert.alert('Error', `No se pudo abrir el archivo: ${error.message}`);
-      }
+      console.error('[ActionSheet] Error en handleOpenWith:', error);
+      // Los errores de cancelación ya se manejan dentro de presentOpenWithSafely
     }
   };
 
@@ -87,44 +67,19 @@ const ActionSheet = ({
 
       console.log('[ActionSheet] Ver interno iniciado:', { fileUri, mimeType });
 
-      // ✅ Verificar que el archivo existe (API nueva con fallback)
-      const exists = await fileExists(fileUri);
-      if (!exists) {
-        Alert.alert('Archivo no encontrado', 'El documento no está disponible.');
-        onClose();
-        return;
-      }
-
-      if (mimeType === 'application/pdf') {
-        // Para PDF, usar WebBrowser (estable en archivos persistentes)
-        console.log('[ActionSheet] Abriendo PDF con WebBrowser...');
-        await WebBrowser.openBrowserAsync(fileUri, {
-          controlsColor: '#3E7D75',
-          toolbarColor: '#FCFCF8',
-          enableBarCollapsing: false,
-          showTitle: true,
-        });
-        console.log('[ActionSheet] ✓ PDF abierto exitosamente');
-      } else if (mimeType === 'text/csv') {
-        // Para CSV, leer contenido y mostrar preview (usa legacy API para lectura)
-        console.log('[ActionSheet] Leyendo CSV...');
-        const content = await FileSystem.readAsStringAsync(fileUri);
-        const preview = content.slice(0, 500);
-        Alert.alert(
-          '📊 Vista previa CSV',
-          `${preview}${content.length > 500 ? '\n\n...' : ''}\n\nPara ver el archivo completo, usa "Abrir con..." y selecciona Excel, Google Sheets, etc.`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        // Otros tipos
-        Alert.alert(
-          'Vista previa',
-          `Archivo: ${fileName}\n\nUsa "Abrir con..." para abrir este tipo de archivo.`,
-          [{ text: 'OK' }]
-        );
-      }
-      
+      // Cerrar el ActionSheet primero
       onClose();
+      
+      // Esperar un momento para estabilización
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Determinar tipo de archivo
+      const kind = mimeType === 'text/csv' ? 'csv' : 'pdf';
+      
+      // Usar nueva API de visor interno seguro por plataforma
+      await viewInternallySafely(fileUri, kind);
+      
+      console.log('[ActionSheet] ✓ viewInternallySafely completado');
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
       // ❌ NO loguear warnings de deprecación como errores

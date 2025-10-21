@@ -1,241 +1,163 @@
 // src/utils/openWith.ts
-// Helper para compartir archivos con Share Sheet nativo
+// Helper para compartir y visualizar archivos de forma segura por plataforma
 
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
-import * as FS from 'expo-file-system/legacy'; // Solo para readAsStringAsync
-import { Platform, InteractionManager, Alert } from 'react-native';
-import { fileExists } from './fsExists';
+import * as FileSystem from 'expo-file-system';
+import * as Print from 'expo-print';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Platform, Alert } from 'react-native';
 
-// MIME types estándar
-const MIME = {
-  pdf: 'application/pdf',
-  csv: 'text/csv',
-} as const;
+export type OpenKind = 'pdf' | 'csv';
 
-// iOS UTI para mejor compatibilidad
-const UTI_MAP = {
-  pdf: 'com.adobe.pdf',
-  csv: 'public.comma-separated-values-text',
-} as const;
-
-export interface OpenWithOptions {
-  dialogTitle?: string;
+/**
+ * Normaliza una URI de archivo:
+ * - Asegura que tenga prefijo file://
+ * - Codifica espacios y caracteres especiales
+ * - Valida que no esté vacía
+ */
+function normalizeFileUri(raw: string): string {
+  if (!raw || typeof raw !== 'string' || raw.trim().length === 0) {
+    throw new Error('Empty URI');
+  }
+  
+  let uri = raw.startsWith('file://') ? raw : `file://${raw}`;
+  
+  // Encode espacios y caracteres raros sin romper el esquema
+  const [scheme, rest] = uri.split('://');
+  if (!rest) throw new Error('Invalid URI format');
+  
+  return `${scheme}://${encodeURI(rest)}`;
 }
 
 /**
- * Obtiene el UTI correcto para iOS según el mimeType
+ * Visualiza un archivo internamente:
+ * - iOS: usa Print.printAsync como visor nativo (cancelación no es error)
+ * - Android: usa Intent con content:// URI, fallback a Sharing si falla
  */
-function getUTI(mimeType: string): string {
-  if (mimeType === MIME.pdf) return UTI_MAP.pdf;
-  if (mimeType === MIME.csv) return UTI_MAP.csv;
-  return mimeType;
-}
-
-/**
- * Abre un archivo con el selector nativo de aplicaciones "Abrir con..."
- * Si sharing no está disponible, usa fallback a WebBrowser o preview
- * 
- * @param uri URI del archivo a compartir (debe ser file://)
- * @param mimeType Tipo MIME del archivo ('application/pdf', 'text/csv', etc.)
- * @param options Opciones adicionales (título del diálogo, etc.)
- * @returns true si se compartió exitosamente, false si no está disponible o hubo error
- */
-export async function openWith(
-  uri: string, 
-  mimeType: string,
-  options: OpenWithOptions = {}
-): Promise<boolean> {
+export async function viewInternallySafely(rawUri: string, kind: OpenKind): Promise<void> {
   try {
-    console.log('[openWith] Iniciando:', { uri, mimeType, platform: Platform.OS });
+    const uri = normalizeFileUri(rawUri);
+    console.log('[viewInternallySafely] Iniciando vista interna:', { uri, kind, platform: Platform.OS });
     
-    // Validar URI
-    if (!uri || typeof uri !== 'string' || uri.trim().length === 0) {
-      console.error('[openWith] URI inválido:', uri);
-      return false;
+    // Verificar existencia del archivo
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) {
+      throw new Error('File does not exist');
     }
 
-    // Validar mimeType
-    if (!mimeType || typeof mimeType !== 'string') {
-      console.error('[openWith] mimeType inválido:', mimeType);
-      return false;
-    }
-
-    // Verificar disponibilidad de Sharing
-    const isAvailable = await Sharing.isAvailableAsync();
-    console.log('[openWith] Sharing disponible:', isAvailable);
-    
-    if (!isAvailable) {
-      // ✅ FALLBACK: usar WebBrowser para PDF, preview para CSV
-      console.log('[openWith] Sharing no disponible, usando fallback...');
-      
-      if (mimeType === MIME.pdf) {
-        console.log('[openWith] Abriendo PDF en WebBrowser...');
-        await WebBrowser.openBrowserAsync(uri, {
-          controlsColor: '#3E7D75',
-          toolbarColor: '#FCFCF8',
-          enableBarCollapsing: false,
-          showTitle: true,
-        });
-        return true;
-      } else if (mimeType === MIME.csv) {
-        console.log('[openWith] Mostrando preview CSV...');
-        const content = await FS.readAsStringAsync(uri);
-        const preview = content.slice(0, 1000);
-        Alert.alert(
-          'CSV (vista rápida)', 
-          `${preview}${content.length > 1000 ? '\n\n...' : ''}\n\nUsa "Abrir con..." para abrir en Excel, Sheets, etc.`,
-          [{ text: 'OK' }]
-        );
-        return true;
-      }
-      
-      return false;
-    }
-
-    // Preparar opciones según la plataforma
-    const shareOptions: any = {
-      mimeType,
-    };
-
-    // En iOS, usar UTI para mejor compatibilidad (especialmente CSV)
     if (Platform.OS === 'ios') {
-      shareOptions.UTI = getUTI(mimeType);
-    } else {
-      // En Android, usar dialogTitle
-      shareOptions.dialogTitle = options.dialogTitle || 'Abrir con...';
+      // iOS: usar el visor nativo de impresión como preview
+      console.log('[viewInternallySafely] iOS: usando Print.printAsync...');
+      try {
+        await Print.printAsync({ uri });
+        console.log('[viewInternallySafely] ✓ Print dialog completado');
+      } catch (e: any) {
+        // Usuario canceló o no completó: no tratar como crash
+        const msg = String(e?.message || e);
+        if (/did not complete|canceled|cancelled/i.test(msg)) {
+          console.log('[viewInternallySafely] Usuario canceló vista previa (normal)');
+          return;
+        }
+        throw e;
+      }
+      return;
     }
 
-    console.log('[openWith] Compartiendo con opciones:', shareOptions);
-    console.log('[openWith] URI a compartir:', uri);
-
-    // Compartir archivo con Share Sheet nativo
-    console.log('[openWith] 🚀 Llamando a Sharing.shareAsync...');
-    await Sharing.shareAsync(uri, shareOptions);
+    // ANDROID: intentar con Intent y content://
+    console.log('[viewInternallySafely] Android: obteniendo content URI...');
+    const contentUri = await FileSystem.getContentUriAsync(uri);
+    console.log('[viewInternallySafely] Content URI:', contentUri);
     
-    console.log('[openWith] ✅ shareAsync completado - El usuario interactuó con el Share Sheet');
-    console.log('[openWith] ✓ Share Sheet se presentó correctamente');
-    return true;
-
-  } catch (error: any) {
-    console.error('[openWith] ❌ Error capturado:', {
-      message: error.message,
-      code: error.code,
-      name: error.name
-    });
-    
-    // No mostrar alert si el usuario canceló
-    if (error.code === 'ERR_CANCELED' || 
-        error.code === 'E_SHARING_MIS_CANCEL' ||
-        error.code === 'CANCELLED' ||
-        error.message?.toLowerCase().includes('cancel') ||
-        error.message?.toLowerCase().includes('cancelled')) {
-      console.log('[openWith] ℹ️ Usuario canceló el Share Sheet (normal)');
-      return false;
+    try {
+      console.log('[viewInternallySafely] Lanzando Intent VIEW...');
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        type: kind === 'csv' ? 'text/csv' : 'application/pdf',
+      });
+      console.log('[viewInternallySafely] ✓ Intent lanzado exitosamente');
+      return;
+    } catch (intentError) {
+      console.warn('[viewInternallySafely] Intent falló, usando fallback Sharing...', intentError);
+      // fallback a compartir si no hay visor
+      await Sharing.shareAsync(uri, {
+        mimeType: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        dialogTitle: 'Compartir archivo',
+      });
     }
-    
-    // Para otros errores, mostrar alert
-    console.error('[openWith] ⚠️ Error no manejado:', error);
-    Alert.alert(
-      'Error al compartir',
-      `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}\n\nCódigo: ${error.code || 'N/A'}`,
-      [{ text: 'OK' }]
-    );
-    
-    return false;
+  } catch (err: any) {
+    console.error('[viewInternallySafely] Error:', err);
+    Alert.alert('Error', 'No se pudo abrir el archivo para vista previa.');
   }
 }
 
 /**
- * Helper específico para abrir PDFs
+ * Presenta el Share Sheet nativo para "Abrir con...":
+ * - Valida URI y existencia del archivo
+ * - iOS: usa Sharing.shareAsync con UTI correcto
+ * - Android: usa Sharing.shareAsync o Intent como fallback
  */
-export async function openPDF(uri: string, title?: string): Promise<boolean> {
-  return openWith(uri, MIME.pdf, { 
-    dialogTitle: title || 'Abrir PDF con...' 
-  });
-}
-
-/**
- * Helper específico para abrir CSVs
- */
-export async function openCSV(uri: string, title?: string): Promise<boolean> {
-  return openWith(uri, MIME.csv, { 
-    dialogTitle: title || 'Abrir CSV con...' 
-  });
-}
-
-/**
- * Presentación segura: cerrar modal antes, delay corto, verificar existencia
- * Evita conflicto en iOS donde no se pueden tener dos modales simultáneos
- * 
- * @param uri URI del archivo (debe existir en file system)
- * @param kind Tipo de archivo ('pdf' o 'csv')
- * @param closeModal Función opcional para cerrar modal antes de compartir
- * @returns true si se compartió exitosamente
- */
-export async function presentOpenWithSafely({
-  uri,
-  kind = 'pdf',
-  closeModal,
-}: {
-  uri: string;
-  kind?: 'pdf' | 'csv';
-  closeModal?: () => void;
-}): Promise<boolean> {
+export async function presentOpenWithSafely(rawUri: string, kind: OpenKind): Promise<void> {
   try {
-    console.log('[presentOpenWithSafely] Iniciando preparación para Share Sheet');
+    const uri = normalizeFileUri(rawUri);
+    console.log('[presentOpenWithSafely] Iniciando:', { uri, kind, platform: Platform.OS });
     
-    // Cerrar modal si existe
-    if (closeModal) {
-      console.log('[presentOpenWithSafely] Cerrando modal proporcionado...');
-      closeModal();
-    } else {
-      console.log('[presentOpenWithSafely] No hay modal para cerrar (ya cerrado)');
+    // Verificar existencia del archivo
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) {
+      throw new Error('File does not exist');
     }
+
+    // Intentar con Sharing API
+    if (await Sharing.isAvailableAsync()) {
+      console.log('[presentOpenWithSafely] Usando Sharing.shareAsync...');
+      
+      const shareOptions: any = {
+        mimeType: kind === 'csv' ? 'text/csv' : 'application/pdf',
+        dialogTitle: 'Compartir archivo',
+      };
+      
+      // En iOS, usar UTI para mejor compatibilidad (especialmente CSV)
+      if (Platform.OS === 'ios') {
+        shareOptions.UTI = kind === 'csv'
+          ? 'public.comma-separated-values-text'
+          : 'com.adobe.pdf';
+      }
+      
+      await Sharing.shareAsync(uri, shareOptions);
+      console.log('[presentOpenWithSafely] ✓ Sharing completado');
+      return;
+    }
+
+    // Fallback extremo si Sharing no está disponible
+    console.warn('[presentOpenWithSafely] Sharing no disponible, usando fallback...');
     
-    // Esperar a que InteractionManager complete todas las interacciones
-    await new Promise<void>(resolve => {
-      InteractionManager.runAfterInteractions(() => {
-        console.log('[presentOpenWithSafely] Interacciones completadas');
-        resolve();
+    if (Platform.OS === 'android') {
+      console.log('[presentOpenWithSafely] Android fallback: usando Intent SEND...');
+      const contentUri = await FileSystem.getContentUriAsync(uri);
+      await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
+        data: contentUri,
+        flags: 1,
+        type: kind === 'csv' ? 'text/csv' : 'application/pdf',
       });
-    });
-    
-    // ✅ Delay optimizado: 300ms (total 300-600ms dependiendo de animaciones)
-    console.log('[presentOpenWithSafely] Esperando 300ms para estabilización...');
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // ✅ Verificar que el archivo existe ANTES de abrir Share Sheet
-    console.log('[presentOpenWithSafely] Verificando existencia del archivo...');
-    const exists = await fileExists(uri);
-    
-    if (!exists) {
-      console.warn('[presentOpenWithSafely] ⚠️ Archivo no encontrado:', uri);
+    } else {
       Alert.alert(
-        'Archivo no encontrado',
-        'El documento ya no está disponible. Es posible que haya sido eliminado.',
-        [{ text: 'OK' }]
+        'Vista previa',
+        kind === 'csv'
+          ? 'CSV generado correctamente. Usa "Compartir" para enviarlo.'
+          : 'PDF generado correctamente. Usa "Compartir" para enviarlo.'
       );
-      return false;
+    }
+  } catch (err: any) {
+    console.error('[presentOpenWithSafely] Error:', err);
+    
+    // No mostrar error si el usuario canceló
+    const msg = String(err?.message || err);
+    if (/cancel|cancelled/i.test(msg)) {
+      console.log('[presentOpenWithSafely] Usuario canceló (normal)');
+      return;
     }
     
-    console.log('[presentOpenWithSafely] ✓ Archivo existe, abriendo Share Sheet...');
-    
-    // Determinar MIME correcto
-    const mime = kind === 'csv' ? MIME.csv : MIME.pdf;
-    
-    // Ahora sí, abrir el Share Sheet
-    const result = await openWith(uri, mime);
-    
-    console.log('[presentOpenWithSafely] Resultado final:', result);
-    return result;
-  } catch (error) {
-    console.error('[presentOpenWithSafely] Error:', error);
-    Alert.alert(
-      'Error',
-      `No se pudo compartir el archivo: ${(error as Error).message}`,
-      [{ text: 'OK' }]
-    );
-    return false;
+    Alert.alert('Error', 'No se pudo abrir el menú de compartir.');
   }
 }
