@@ -11,6 +11,7 @@ module.exports = {
   moduleNameMapper: {
     // Mocks de Expo
     '^expo-file-system$': '<rootDir>/__mocks__/expo-file-system.js',
+    '^expo-file-system/legacy$': '<rootDir>/__mocks__/expo-file-system/legacy.js',
     '^expo-sharing$': '<rootDir>/__mocks__/expo-sharing.js',
     '^expo-print$': '<rootDir>/__mocks__/expo-print.js',
     '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.js',

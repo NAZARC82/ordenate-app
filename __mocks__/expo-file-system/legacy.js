@@ -5,6 +5,12 @@ module.exports = {
   documentDirectory: 'file://mock/',
   cacheDirectory: 'file://mock-cache/',
   
+  // Encoding types
+  EncodingType: {
+    UTF8: 'utf8',
+    Base64: 'base64',
+  },
+  
   // Operaciones de archivo
   writeAsStringAsync: jest.fn(() => Promise.resolve()),
   readAsStringAsync: jest.fn(() => Promise.resolve('')),
@@ -14,6 +20,7 @@ module.exports = {
   
   // Operaciones de directorio
   makeDirectoryAsync: jest.fn(() => Promise.resolve()),
+  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
   
   // Información de archivo
   getInfoAsync: jest.fn(() => Promise.resolve({ 
@@ -23,4 +30,7 @@ module.exports = {
     modificationTime: Date.now(),
     uri: 'file://mock/file.txt'
   })),
+  
+  // Para Android
+  getContentUriAsync: jest.fn((uri) => Promise.resolve(uri.replace('file://', 'content://'))),
 };

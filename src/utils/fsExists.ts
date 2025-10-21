@@ -1,13 +1,11 @@
 // src/utils/fsExists.ts
-import * as FS from 'expo-file-system';
-import type { File as FileType } from 'expo-file-system';
+import * as FS from 'expo-file-system/legacy';
 
 /**
- * Verifica si un archivo existe usando la API nueva de expo-file-system (SDK 54+)
- * Con fallback automático a legacy API para máxima compatibilidad
+ * Verifica si un archivo existe usando la API legacy de expo-file-system
+ * Compatible con SDK 54+ pero usa legacy para evitar warnings
  * 
- * API nueva (preferida): File class
- * Fallback silencioso: import desde expo-file-system/legacy
+ * API legacy (usada): getInfoAsync()
  */
 export async function fileExists(uri: string): Promise<boolean> {
   if (!uri || typeof uri !== 'string') {
@@ -15,29 +13,8 @@ export async function fileExists(uri: string): Promise<boolean> {
   }
 
   try {
-    // 🆕 API nueva (Expo SDK 54) - File class
-    // Intentar usar File directamente si está disponible
-    if ((FS as any).File) {
-      try {
-        const File = (FS as any).File as typeof FileType;
-        const file = new File(uri);
-        const exists = file.exists; // ✅ Propiedad, no método
-        
-        if (__DEV__) {
-          const fileName = uri.substring(uri.lastIndexOf('/') + 1);
-          console.log('[fileExists] API nueva:', { fileName, exists });
-        }
-        
-        return exists;
-      } catch (newApiError) {
-        // Si falla API nueva, continuar al fallback sin loguear
-        // (puede ser error normal de ruta inválida o API no disponible)
-      }
-    }
-
-    // 🔄 Fallback a legacy API (import explícito)
-    const { getInfoAsync } = await import('expo-file-system/legacy');
-    const info = await getInfoAsync(uri);
+    // 🔄 Legacy API (import explícito desde /legacy)
+    const info = await FS.getInfoAsync(uri);
     const exists = !!(info?.exists && !(info as any).isDirectory);
     
     if (__DEV__) {

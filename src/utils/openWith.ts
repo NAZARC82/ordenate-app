@@ -2,7 +2,7 @@
 // Helper para compartir y visualizar archivos de forma segura por plataforma
 
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { Platform, Alert } from 'react-native';
@@ -12,21 +12,23 @@ export type OpenKind = 'pdf' | 'csv';
 /**
  * Normaliza una URI de archivo:
  * - Asegura que tenga prefijo file://
- * - Codifica espacios y caracteres especiales
  * - Valida que no esté vacía
+ * - Mantiene codificación existente
  */
 function normalizeFileUri(raw: string): string {
   if (!raw || typeof raw !== 'string' || raw.trim().length === 0) {
     throw new Error('Empty URI');
   }
   
+  // Asegurar prefijo file://
   let uri = raw.startsWith('file://') ? raw : `file://${raw}`;
   
-  // Encode espacios y caracteres raros sin romper el esquema
-  const [scheme, rest] = uri.split('://');
-  if (!rest) throw new Error('Invalid URI format');
+  // Validar formato básico
+  if (!uri.includes('://')) {
+    throw new Error('Invalid URI format');
+  }
   
-  return `${scheme}://${encodeURI(rest)}`;
+  return uri;
 }
 
 /**
@@ -87,7 +89,18 @@ export async function viewInternallySafely(rawUri: string, kind: OpenKind): Prom
     }
   } catch (err: any) {
     console.error('[viewInternallySafely] Error:', err);
-    Alert.alert('Error', 'No se pudo abrir el archivo para vista previa.');
+    const errorMsg = err?.message || String(err);
+    console.error('[viewInternallySafely] Error details:', { 
+      message: errorMsg, 
+      uri: rawUri, 
+      kind,
+      stack: err?.stack 
+    });
+    
+    Alert.alert(
+      'Error al abrir archivo',
+      `No se pudo abrir el archivo para vista previa.\n\nDetalle: ${errorMsg}`
+    );
   }
 }
 
@@ -158,6 +171,17 @@ export async function presentOpenWithSafely(rawUri: string, kind: OpenKind): Pro
       return;
     }
     
-    Alert.alert('Error', 'No se pudo abrir el menú de compartir.');
+    const errorMsg = err?.message || String(err);
+    console.error('[presentOpenWithSafely] Error details:', { 
+      message: errorMsg, 
+      uri: rawUri, 
+      kind,
+      stack: err?.stack 
+    });
+    
+    Alert.alert(
+      'Error al compartir',
+      `No se pudo abrir el menú de compartir.\n\nDetalle: ${errorMsg}`
+    );
   }
 }
