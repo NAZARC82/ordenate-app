@@ -4,6 +4,8 @@ import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, Swi
 import { Ionicons } from '@expo/vector-icons';
 import { listSignatures, saveSignature, deleteSignature, Signature } from '../features/documents/signatures';
 import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
+import { purgeOlderThan } from '../features/documents/retention';
+import { showToast, showErrorToast } from '../utils/toast';
 
 type Tab = 'signatures' | 'design';
 
@@ -97,6 +99,36 @@ export default function DocumentManagerScreen({ route }: any) {
     await updatePrefs({ negativeRed: value });
   };
 
+  const handleCleanupOldExports = async () => {
+    Alert.alert(
+      '🧹 Limpiar Exportaciones Antiguas',
+      'Se eliminarán todos los archivos exportados con más de 30 días de antigüedad.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpiar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[DocumentManager] Iniciando limpieza de exports >30d');
+              const result = await purgeOlderThan(30);
+              console.log('[DocumentManager] Archivos eliminados:', result.removed);
+              
+              if (result.removed > 0) {
+                showToast(`✅ ${result.removed} archivo${result.removed > 1 ? 's' : ''} eliminado${result.removed > 1 ? 's' : ''}`);
+              } else {
+                showToast('ℹ️ No hay archivos antiguos para eliminar');
+              }
+            } catch (error) {
+              console.error('[DocumentManager] Error al limpiar:', error);
+              showErrorToast('No se pudo completar la limpieza');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={s.container} testID="docmgr-root">
       {/* Tabs: Firmas y Diseño */}
@@ -129,6 +161,15 @@ export default function DocumentManagerScreen({ route }: any) {
           >
             <Ionicons name="add-circle-outline" size={20} color="#fff" />
             <Text style={s.primaryText}>Nueva Firma</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.cleanupBtn}
+            testID="btn-cleanup-exports"
+            onPress={handleCleanupOldExports}
+          >
+            <Ionicons name="trash-outline" size={18} color="#E74C3C" />
+            <Text style={s.cleanupText}>🧹 Limpiar exportaciones &gt;30d</Text>
           </TouchableOpacity>
 
           {sigs.length === 0 && (
@@ -383,6 +424,19 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  cleanupBtn: {
+    backgroundColor: '#FFF4F4',
+    borderWidth: 1,
+    borderColor: '#FFD4D4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  cleanupText: { color: '#E74C3C', fontWeight: '600', fontSize: 14 },
   sigRow: {
     flexDirection: 'row',
     gap: 12,

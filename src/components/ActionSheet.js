@@ -16,6 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy'; // Legacy API para leer C
 import { fileExists } from '../utils/fsExists'; // ✅ API nueva con fallback
 import { presentOpenWithSafely } from '../utils/openWith';
 import { deleteRecent } from '../features/documents/registry';
+import { showToast } from '../utils/toast';
 
 const ActionSheet = ({ 
   visible, 
@@ -170,6 +171,55 @@ const ActionSheet = ({
     );
   };
 
+  // 🗑️ Eliminar del dispositivo (archivo físico + registro)
+  const handleDeletePhysical = async () => {
+    if (!documentId || !fileUri) {
+      Alert.alert('Error', 'No se puede eliminar: información incompleta');
+      return;
+    }
+
+    Alert.alert(
+      '⚠️ Eliminar del Dispositivo',
+      `Se borrará el archivo "${fileName}" del dispositivo y de Recientes.\n\nEsta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Verificar si el archivo existe
+              const exists = await fileExists(fileUri);
+              
+              if (!exists) {
+                console.log('[ActionSheet] Archivo ya no existe, solo limpiando registro');
+                showToast('⚠️ El archivo ya no estaba disponible');
+                await deleteRecent(documentId);
+                onClose();
+                return;
+              }
+
+              // 2. Eliminar archivo físico
+              console.log('[ActionSheet] Eliminando archivo físico:', fileUri);
+              await FileSystem.deleteAsync(fileUri, { idempotent: true });
+              console.log('[ActionSheet] Archivo físico eliminado');
+
+              // 3. Eliminar de Recientes
+              await deleteRecent(documentId);
+              console.log('[ActionSheet] Registro eliminado de Recientes');
+
+              showToast('✅ Archivo eliminado del dispositivo');
+              onClose();
+            } catch (error) {
+              console.error('[ActionSheet] Error al eliminar físicamente:', error);
+              Alert.alert('Error', 'No se pudo eliminar el archivo del dispositivo');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Acciones disponibles (sin opción de modificar contenido post-export)
   const actions = [
     {
@@ -194,6 +244,14 @@ const ActionSheet = ({
       icon: 'trash-outline',
       color: '#E74C3C',
       onPress: handleDelete,
+      show: true
+    },
+    {
+      id: 'delete-physical',
+      title: 'Eliminar del Dispositivo',
+      icon: 'trash-bin',
+      color: '#C0392B',
+      onPress: handleDeletePhysical,
       show: true
     }
   ];

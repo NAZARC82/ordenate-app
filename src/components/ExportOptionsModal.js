@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import ActionSheet from './ActionSheet';
 import { generateSignatureOptions } from '../utils/signatureStorage';
 import { FLAGS } from '../features/pdf/flags';
+import { useExportModalPresets, exportWithZip, shouldCreateZip, showPostExportToast } from '../features/exports/presetIntegration';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -70,10 +71,26 @@ const ExportOptionsModal = ({
   const [estados, setEstados] = useState(DEFAULT_OPTIONS.estados);
   const [columnas, setColumnas] = useState(DEFAULT_OPTIONS.columnas);
   const [firmas, setFirmas] = useState(DEFAULT_OPTIONS.firmas);
+  const [exportFormat, setExportFormat] = useState('pdf'); // 'pdf', 'csv', 'both'
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [exportResult, setExportResult] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+
+  // Hook de presets - carga automáticamente al abrir
+  const { preset, isLoading: presetsLoading, saveCurrentSelection } = useExportModalPresets({
+    onLoad: (loadedPreset) => {
+      console.log('[ExportOptionsModal] Preset cargado:', loadedPreset);
+      // Restaurar formato si existe en el preset
+      if (loadedPreset.includePdf && loadedPreset.includeCsv) {
+        setExportFormat('both');
+      } else if (loadedPreset.includeCsv) {
+        setExportFormat('csv');
+      } else {
+        setExportFormat('pdf');
+      }
+    }
+  });
 
   // Resetear estado de navegación cuando se cierra el modal
   useEffect(() => {
@@ -263,8 +280,7 @@ const ExportOptionsModal = ({
 
   // Manejar exportación
   const handleExportar = async () => {
-    console.log('[export] Iniciando exportación PDF...');
-    console.log('[Export] PDF click');
+    console.log('[export] Iniciando exportación - formato:', exportFormat);
     try {
       setLocalLoading(true);
       
@@ -296,38 +312,88 @@ const ExportOptionsModal = ({
       // Guardar opciones antes de exportar
       await saveOptions();
       
+      // Guardar preset con el formato seleccionado
+      await saveCurrentSelection({
+        includePdf: exportFormat === 'pdf' || exportFormat === 'both',
+        includeCsv: exportFormat === 'csv' || exportFormat === 'both',
+        includeTotals: true,
+        dateRange: rangoFecha
+      });
+      
       // Generar opciones de firma si están habilitadas
       let signatureOptions = null;
       if (firmas.modo !== 'none') {
         signatureOptions = await generateSignatureOptions(firmas.modo);
       }
+
+      let pdfResult = null;
+      let csvResult = null;
       
-      // Usar exportPDFColored directamente para colores corporativos
-      const result = await exportPDFColored(movsFiltrados, {
-        columnas: columnasSeleccionadas,
-        titulo: 'Reporte Corporativo Filtrado',
-        subtitulo: `${movsFiltrados.length} movimiento(s) - ${getRangoTexto()}`,
-        contexto: 'filtrado',
-        signatures: signatureOptions,
-        ...contexto
-      });
+      // Generar PDF si es necesario
+      if (exportFormat === 'pdf' || exportFormat === 'both') {
+        pdfResult = await exportPDFColored(movsFiltrados, {
+          columnas: columnasSeleccionadas,
+          titulo: 'Reporte Corporativo Filtrado',
+          subtitulo: `${movsFiltrados.length} movimiento(s) - ${getRangoTexto()}`,
+          contexto: 'filtrado',
+          signatures: signatureOptions,
+          ...contexto
+        });
+      }
       
-      if (result && result.success) {
-        setExportResult(result);
+      // Generar CSV si es necesario
+      if (exportFormat === 'csv' || exportFormat === 'both') {
+        csvResult = await exportCSV(movsFiltrados, {
+          columnas: columnasSeleccionadas,
+          incluirFirmas: firmas.incluirEnCSV,
+          ...contexto
+        });
+      }
+      
+      // Si ambos formatos, crear ZIP
+      if (exportFormat === 'both' && pdfResult?.success && csvResult?.success) {
+        console.log('[export] Creando ZIP con PDF y CSV...');
+        const baseName = pdfResult.fileName.replace('.pdf', '');
+        const zipUri = await exportWithZip({
+          pdfUri: pdfResult.uri,
+          csvUri: csvResult.uri,
+          outName: `${baseName}.zip`
+        });
+        
+        const zipName = `${baseName}.zip`;
+        await showPostExportToast(zipName, zipUri, 'pdf');
+        
+        setExportResult({ 
+          success: true, 
+          uri: zipUri, 
+          fileName: zipName,
+          mimeType: 'application/zip'
+        });
         setActionSheetVisible(true);
-        // No cerrar el modal aquí - se cierra cuando se complete el ActionSheet
-      } else {
-        const errorMsg = result?.message || 'No se pudo exportar el archivo PDF.';
+      } 
+      // Si solo PDF
+      else if (exportFormat === 'pdf' && pdfResult?.success) {
+        await showPostExportToast(pdfResult.fileName, pdfResult.uri, 'pdf');
+        setExportResult(pdfResult);
+        setActionSheetVisible(true);
+      }
+      // Si solo CSV
+      else if (exportFormat === 'csv' && csvResult?.success) {
+        await showPostExportToast(csvResult.fileName, csvResult.uri, 'csv');
+        setExportResult(csvResult);
+        setActionSheetVisible(true);
+      }
+      else {
+        const errorMsg = 'No se pudo completar la exportación.';
         Alert.alert('Error de Exportación', errorMsg);
-        // Solo cerrar si hay error
         onClose();
       }
       
     } catch (error) {
-      console.error('[export] Error al exportar PDF:', error.message);
+      console.error('[export] Error al exportar:', error.message);
       console.error('[export] Stack trace:', error.stack);
       
-      let userMessage = 'No se pudo exportar el archivo PDF.';
+      let userMessage = 'No se pudo exportar el archivo.';
       if (error.message.includes('Fechas')) {
         userMessage = 'Verifica las fechas ingresadas (formato: dd/mm/aaaa).';
       } else if (error.message.includes('columna') || error.message.includes('estado')) {
@@ -337,7 +403,6 @@ const ExportOptionsModal = ({
       }
       
       Alert.alert('Error de Exportación', userMessage);
-      // Cerrar modal en caso de error
       onClose();
     } finally {
       setLocalLoading(false);
@@ -770,6 +835,71 @@ const ExportOptionsModal = ({
         </ScrollView>
 
         <View style={styles.footer}>
+          {/* Selector de formato */}
+          <View style={styles.formatSelector}>
+            <Text style={styles.formatLabel}>Formato de Exportación:</Text>
+            <View style={styles.formatButtons}>
+              <TouchableOpacity 
+                style={[
+                  styles.formatButton, 
+                  exportFormat === 'pdf' && styles.formatButtonActive
+                ]}
+                onPress={() => setExportFormat('pdf')}
+              >
+                <Ionicons 
+                  name="document-text" 
+                  size={18} 
+                  color={exportFormat === 'pdf' ? '#FFFFFF' : '#666'} 
+                />
+                <Text style={[
+                  styles.formatButtonText,
+                  exportFormat === 'pdf' && styles.formatButtonTextActive
+                ]}>PDF</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.formatButton, 
+                  exportFormat === 'csv' && styles.formatButtonActive
+                ]}
+                onPress={() => setExportFormat('csv')}
+              >
+                <Ionicons 
+                  name="grid" 
+                  size={18} 
+                  color={exportFormat === 'csv' ? '#FFFFFF' : '#666'} 
+                />
+                <Text style={[
+                  styles.formatButtonText,
+                  exportFormat === 'csv' && styles.formatButtonTextActive
+                ]}>CSV</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.formatButton, 
+                  exportFormat === 'both' && styles.formatButtonActive
+                ]}
+                onPress={() => setExportFormat('both')}
+              >
+                <Ionicons 
+                  name="folder-outline" 
+                  size={18} 
+                  color={exportFormat === 'both' ? '#FFFFFF' : '#666'} 
+                />
+                <Text style={[
+                  styles.formatButtonText,
+                  exportFormat === 'both' && styles.formatButtonTextActive
+                ]}>ZIP</Text>
+              </TouchableOpacity>
+            </View>
+            {exportFormat === 'both' && (
+              <Text style={styles.formatHelpText}>
+                Genera PDF y CSV en un solo archivo ZIP
+              </Text>
+            )}
+          </View>
+          
           {/* Primera fila - Vista Previa */}
           <TouchableOpacity 
             style={[styles.exportButton, styles.previewButton, (isNavigating || localLoading || loading) && styles.exportButtonDisabled]}
@@ -780,32 +910,25 @@ const ExportOptionsModal = ({
             <Text style={styles.exportButtonText}>Vista Previa</Text>
           </TouchableOpacity>
           
-          {/* Exportar PDF y CSV */}
-          <View style={styles.exportRow}>
-            <TouchableOpacity 
-              style={[styles.exportButton, styles.pdfButton, styles.halfButton, (localLoading || loading) && styles.exportButtonDisabled]}
-              onPress={handleExportar}
-              disabled={localLoading || loading}
-            >
-              {(localLoading || loading) ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Ionicons name="document-text" size={20} color="white" />
-              )}
-              <Text style={styles.exportButtonText}>
-                {(localLoading || loading) ? 'Generando...' : 'PDF'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.exportButton, styles.csvButton, styles.halfButton, (localLoading || loading) && styles.exportButtonDisabled]}
-              onPress={handleExportarCSV}
-              disabled={localLoading || loading}
-            >
-              <Ionicons name="grid" size={20} color="white" />
-              <Text style={styles.exportButtonText}>CSV</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Botón único de exportar */}
+          <TouchableOpacity 
+            style={[styles.exportButton, styles.pdfButton, (localLoading || loading) && styles.exportButtonDisabled]}
+            onPress={handleExportar}
+            disabled={localLoading || loading}
+          >
+            {(localLoading || loading) ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Ionicons 
+                name={exportFormat === 'pdf' ? 'document-text' : exportFormat === 'csv' ? 'grid' : 'folder-outline'} 
+                size={20} 
+                color="white" 
+              />
+            )}
+            <Text style={styles.exportButtonText}>
+              {(localLoading || loading) ? 'Generando...' : `Exportar ${exportFormat.toUpperCase()}`}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -1034,6 +1157,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  formatSelector: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  formatLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 10,
+  },
+  formatButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  formatButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D0D0D0',
+    backgroundColor: '#FFFFFF',
+  },
+  formatButtonActive: {
+    backgroundColor: '#3E7D75',
+    borderColor: '#3E7D75',
+  },
+  formatButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  formatButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  formatHelpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   switchLabel: {
     fontSize: 14,
