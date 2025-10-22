@@ -39,19 +39,22 @@ export async function viewInternallySafely(
   options?: { closeModal?: () => Promise<void> | void }
 ): Promise<void> {
   try {
-    // Cerrar modal si se proporciona y esperar (450ms conservador)
-    if (options?.closeModal) {
-      await options.closeModal();
-      await delay(); // usa 450ms por defecto
-    }
-
     console.log('[viewInternallySafely] Iniciando:', { uri, kind, platform: Platform.OS });
     
-    // Verificar existencia del archivo
+    // Verificar existencia del archivo ANTES de cerrar modal
     if (!(await fileExists(uri))) {
       console.warn('[viewInternallySafely] Archivo no existe:', uri);
       Alert.alert('Archivo no encontrado', 'El archivo no existe o fue eliminado.');
       return;
+    }
+
+    // ⚠️ CRÍTICO: Cerrar modal y esperar DESPUÉS de validaciones
+    if (options?.closeModal) {
+      console.log('[viewInternallySafely] Cerrando modal...');
+      await Promise.resolve(options.closeModal());
+      console.log('[viewInternallySafely] Modal cerrado, esperando 450ms...');
+      await delay(); // usa 450ms por defecto
+      console.log('[viewInternallySafely] Delay completado, abriendo visor');
     }
 
     const mimeType = MIME_TYPES[kind];
@@ -127,25 +130,28 @@ export async function presentOpenWithSafely(
   options?: { closeModal?: () => Promise<void> | void }
 ): Promise<void> {
   try {
-    // Cerrar modal si se proporciona y esperar (450ms conservador)
-    if (options?.closeModal) {
-      await options.closeModal();
-      await delay(); // usa 450ms por defecto
-    }
-
     console.log('[presentOpenWithSafely] Iniciando:', { uri, kind, platform: Platform.OS });
     
-    // Verificar existencia del archivo
+    // Verificar existencia del archivo ANTES de cerrar modal
     if (!(await fileExists(uri))) {
       console.warn('[presentOpenWithSafely] Archivo no existe:', uri);
       Alert.alert('Archivo no encontrado', 'El archivo no existe o fue eliminado.');
       return;
     }
 
-    // Verificar disponibilidad de Sharing
+    // Verificar disponibilidad de Sharing ANTES de cerrar modal
     if (!(await Sharing.isAvailableAsync())) {
       console.warn('[presentOpenWithSafely] Sharing no disponible, usando visor fallback');
-      return viewInternallySafely(uri, kind);
+      return viewInternallySafely(uri, kind, options);
+    }
+
+    // ⚠️ CRÍTICO: Cerrar modal y esperar DESPUÉS de todas las validaciones
+    if (options?.closeModal) {
+      console.log('[presentOpenWithSafely] Cerrando modal...');
+      await Promise.resolve(options.closeModal());
+      console.log('[presentOpenWithSafely] Modal cerrado, esperando 450ms...');
+      await delay(); // usa 450ms por defecto
+      console.log('[presentOpenWithSafely] Delay completado, abriendo Share Sheet');
     }
 
     const mimeType = MIME_TYPES[kind];
@@ -159,7 +165,7 @@ export async function presentOpenWithSafely(
       shareOptions.UTI = UTI_TYPES[kind];
     }
     
-    console.log('[presentOpenWithSafely] Abriendo Share Sheet...');
+    console.log('[presentOpenWithSafely] Llamando a Sharing.shareAsync con:', shareOptions);
     await Sharing.shareAsync(uri, shareOptions);
     console.log('[presentOpenWithSafely] ✓ Share Sheet completado');
     

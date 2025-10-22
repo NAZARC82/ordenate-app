@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   Modal,
   Alert,
   Platform,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -26,6 +27,8 @@ const ActionSheet = ({
   documentId, // ID del documento en Recientes para poder eliminarlo
   navigation // Para navegar a DocumentManager/Diseño
 }) => {
+  // Estado para prevenir cierre durante operaciones
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
@@ -38,6 +41,7 @@ const ActionSheet = ({
         return;
       }
 
+      setIsProcessing(true); // ⚠️ Bloquear cierre durante operación
       console.log('[ActionSheet] Abrir con...:', { fileUri, mimeType });
       
       // Determinar tipo de archivo
@@ -58,6 +62,8 @@ const ActionSheet = ({
         'Error al compartir',
         'No se pudo abrir el menú para compartir el archivo. Intenta nuevamente.'
       );
+    } finally {
+      setIsProcessing(false); // ✅ Desbloquear
     }
   };
 
@@ -72,6 +78,7 @@ const ActionSheet = ({
         return;
       }
 
+      setIsProcessing(true); // ⚠️ Bloquear cierre durante operación
       console.log('[ActionSheet] Ver interno:', { fileUri, mimeType });
 
       // Determinar tipo de archivo
@@ -92,6 +99,8 @@ const ActionSheet = ({
         'Error al visualizar',
         'No se pudo abrir el visor del archivo. Intenta nuevamente.'
       );
+    } finally {
+      setIsProcessing(false); // ✅ Desbloquear
     }
   };
 
@@ -219,13 +228,26 @@ const ActionSheet = ({
       visible={visible}
       transparent={true}
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        // ⚠️ Prevenir cierre si hay operación en curso
+        if (!isProcessing) {
+          onClose();
+        } else {
+          console.log('[ActionSheet] Cierre bloqueado: operación en curso');
+        }
+      }}
     >
       <View style={styles.overlay}>
         <TouchableOpacity 
           style={styles.overlayTouch}
           activeOpacity={1}
-          onPress={onClose}
+          onPress={() => {
+            // ⚠️ Prevenir cierre accidental si hay operación en curso
+            if (!isProcessing) {
+              onClose();
+            }
+          }}
+          disabled={isProcessing} // Deshabilitar tap durante procesamiento
         />
         
         <View style={styles.container}>
@@ -234,11 +256,21 @@ const ActionSheet = ({
             <View style={styles.handle} />
             <Text style={styles.title}>📄 {fileName}</Text>
             <Text style={styles.subtitle}>
-              {mimeType === 'application/pdf' ? 'Documento PDF' : 'Archivo CSV'}
+              {mimeType === 'application/pdf' ? 'Documento PDF' : 
+               mimeType === 'text/csv' ? 'Archivo CSV' :
+               mimeType === 'application/zip' ? 'Archivo ZIP' : 'Documento'}
             </Text>
             <Text style={styles.uri} numberOfLines={1} ellipsizeMode="middle">
               {fileUri}
             </Text>
+            
+            {/* Indicador de procesamiento */}
+            {isProcessing && (
+              <View style={styles.processingIndicator}>
+                <ActivityIndicator size="small" color="#3E7D75" />
+                <Text style={styles.processingText}>Procesando...</Text>
+              </View>
+            )}
           </View>
 
           {/* Actions con Scroll */}
@@ -252,23 +284,32 @@ const ActionSheet = ({
             {actions.filter(a => a.show).map((action) => (
               <TouchableOpacity
                 key={action.id}
-                style={styles.actionItem}
+                style={[
+                  styles.actionItem,
+                  isProcessing && styles.actionItemDisabled
+                ]}
                 onPress={action.onPress}
                 activeOpacity={0.7}
                 testID={`action-${action.id}`}
+                disabled={isProcessing} // ⚠️ Deshabilitar durante procesamiento
               >
                 <View style={[styles.actionIcon, { backgroundColor: `${action.color}15` }]}>
                   <Ionicons 
                     name={action.icon} 
                     size={24} 
-                    color={action.color} 
+                    color={isProcessing ? '#ccc' : action.color} 
                   />
                 </View>
-                <Text style={styles.actionText}>{action.title}</Text>
+                <Text style={[
+                  styles.actionText,
+                  isProcessing && styles.actionTextDisabled
+                ]}>
+                  {action.title}
+                </Text>
                 <Ionicons 
                   name="chevron-forward" 
                   size={20} 
-                  color="#64748b" 
+                  color={isProcessing ? '#ccc' : '#64748b'} 
                 />
               </TouchableOpacity>
             ))}
@@ -276,10 +317,19 @@ const ActionSheet = ({
 
           {/* Cancel Button */}
           <TouchableOpacity 
-            style={styles.cancelButton}
+            style={[
+              styles.cancelButton,
+              isProcessing && styles.cancelButtonDisabled
+            ]}
             onPress={onClose}
+            disabled={isProcessing} // ⚠️ No permitir cancelar durante procesamiento
           >
-            <Text style={styles.cancelText}>Cancelar</Text>
+            <Text style={[
+              styles.cancelText,
+              isProcessing && styles.cancelTextDisabled
+            ]}>
+              {isProcessing ? 'Procesando...' : 'Cancelar'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -340,6 +390,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
+  processingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#E8F5F3',
+    borderRadius: 20,
+  },
+  processingText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#3E7D75',
+    fontWeight: '600',
+  },
   actionsContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -352,6 +417,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     marginBottom: 8,
+  },
+  actionItemDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#f1f5f9',
   },
   actionIcon: {
     width: 44,
@@ -367,6 +436,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1e293b',
   },
+  actionTextDisabled: {
+    color: '#94a3b8',
+  },
   cancelButton: {
     marginTop: 12,
     marginHorizontal: 20,
@@ -375,10 +447,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderRadius: 12,
   },
+  cancelButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#e2e8f0',
+  },
   cancelText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#64748b',
+  },
+  cancelTextDisabled: {
+    color: '#94a3b8',
   },
 });
 
