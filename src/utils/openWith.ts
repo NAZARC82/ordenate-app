@@ -24,8 +24,9 @@ const UTI_TYPES = {
 
 /**
  * Delay helper para dar tiempo al cierre de modales
+ * Usa 450ms (conservador) para evitar race conditions en transiciones iOS/Android
  */
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number = 450) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Visualiza un archivo internamente con estrategia por plataforma
@@ -38,10 +39,10 @@ export async function viewInternallySafely(
   options?: { closeModal?: () => Promise<void> | void }
 ): Promise<void> {
   try {
-    // Cerrar modal si se proporciona y esperar
+    // Cerrar modal si se proporciona y esperar (450ms conservador)
     if (options?.closeModal) {
       await options.closeModal();
-      await delay(300);
+      await delay(); // usa 450ms por defecto
     }
 
     console.log('[viewInternallySafely] Iniciando:', { uri, kind, platform: Platform.OS });
@@ -126,10 +127,10 @@ export async function presentOpenWithSafely(
   options?: { closeModal?: () => Promise<void> | void }
 ): Promise<void> {
   try {
-    // Cerrar modal si se proporciona y esperar
+    // Cerrar modal si se proporciona y esperar (450ms conservador)
     if (options?.closeModal) {
       await options.closeModal();
-      await delay(300);
+      await delay(); // usa 450ms por defecto
     }
 
     console.log('[presentOpenWithSafely] Iniciando:', { uri, kind, platform: Platform.OS });
