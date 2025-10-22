@@ -29,6 +29,9 @@ const ActionSheet = ({
   
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
+    // Guardar referencia a onClose para evitar problemas si el componente se desmonta
+    const closeModal = onClose;
+    
     try {
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
@@ -42,16 +45,27 @@ const ActionSheet = ({
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
+      console.log('[ActionSheet] Llamando a presentOpenWithSafely con kind:', kind);
+      
       // Usar API con cierre de modal integrado
-      await presentOpenWithSafely(fileUri, kind, { closeModal: onClose });
+      await presentOpenWithSafely(fileUri, kind, { closeModal });
+      
+      console.log('[ActionSheet] ✓ presentOpenWithSafely completado');
       
     } catch (error) {
       console.error('[ActionSheet] Error en handleOpenWith:', error);
+      Alert.alert(
+        'Error al compartir',
+        'No se pudo abrir el menú para compartir el archivo. Intenta nuevamente.'
+      );
     }
   };
 
   // 📄 Ver en visor interno
   const handleViewInternal = async () => {
+    // Guardar referencia a onClose para evitar problemas si el componente se desmonta
+    const closeModal = onClose;
+    
     try {
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para visualizar');
@@ -65,11 +79,19 @@ const ActionSheet = ({
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
+      console.log('[ActionSheet] Llamando a viewInternallySafely con kind:', kind);
+      
       // Usar API con cierre de modal integrado
-      await viewInternallySafely(fileUri, kind, { closeModal: onClose });
+      await viewInternallySafely(fileUri, kind, { closeModal });
+      
+      console.log('[ActionSheet] ✓ viewInternallySafely completado');
       
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
+      Alert.alert(
+        'Error al visualizar',
+        'No se pudo abrir el visor del archivo. Intenta nuevamente.'
+      );
     }
   };
 
