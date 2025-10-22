@@ -30,34 +30,23 @@ const ActionSheet = ({
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
     try {
-      console.log('[ActionSheet] handleOpenWith iniciado');
-      console.log('[ActionSheet] fileUri:', fileUri, 'mimeType:', mimeType);
-      
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
         return;
       }
 
-      // Cerrar el ActionSheet primero
-      onClose();
+      console.log('[ActionSheet] Abrir con...:', { fileUri, mimeType });
       
-      // Esperar un momento antes de abrir Share Sheet
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Determinar tipo de archivo basado en mimeType
+      // Determinar tipo de archivo
       const kind = mimeType === 'text/csv' ? 'csv' : 
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
-      console.log('[ActionSheet] Tipo detectado:', kind, 'para mimeType:', mimeType);
+      // Usar API con cierre de modal integrado
+      await presentOpenWithSafely(fileUri, kind, { closeModal: onClose });
       
-      // Usar nueva API simplificada
-      await presentOpenWithSafely(fileUri, kind);
-      
-      console.log('[ActionSheet] ✓ presentOpenWithSafely completado');
     } catch (error) {
       console.error('[ActionSheet] Error en handleOpenWith:', error);
-      // Los errores de cancelación ya se manejan dentro de presentOpenWithSafely
     }
   };
 
@@ -69,34 +58,18 @@ const ActionSheet = ({
         return;
       }
 
-      console.log('[ActionSheet] Ver interno iniciado:', { fileUri, mimeType });
+      console.log('[ActionSheet] Ver interno:', { fileUri, mimeType });
 
-      // Cerrar el ActionSheet primero
-      onClose();
-      
-      // Esperar un momento para estabilización
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Determinar tipo de archivo basado en mimeType
+      // Determinar tipo de archivo
       const kind = mimeType === 'text/csv' ? 'csv' : 
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
-      console.log('[ActionSheet] Vista interna - Tipo detectado:', kind, 'para mimeType:', mimeType);
+      // Usar API con cierre de modal integrado
+      await viewInternallySafely(fileUri, kind, { closeModal: onClose });
       
-      // Usar nueva API de visor interno seguro por plataforma
-      await viewInternallySafely(fileUri, kind);
-      
-      console.log('[ActionSheet] ✓ viewInternallySafely completado');
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
-      // ❌ NO loguear warnings de deprecación como errores
-      const isDeprecationWarning = error.message?.includes('deprecated') || 
-                                    error.message?.includes('You can migrate');
-      if (!isDeprecationWarning) {
-        Alert.alert('Error', `No se pudo abrir el archivo:\n\n${error.message || 'Error desconocido'}`);
-      }
-      onClose();
     }
   };
 
