@@ -421,7 +421,11 @@ export default function PantallaHistorial() {
         ext: 'csv'
       });
       
-      const result = await exportCSV(movimientosParaExport, filename);
+      // ✅ Pasar opciones correctamente a exportCSV
+      const result = await exportCSV(movimientosParaExport, {
+        contexto: 'reporte',
+        includeHeaders: true
+      });
       
       // Mostrar ActionSheet si la exportación fue exitosa
       if (result && result.success) {
