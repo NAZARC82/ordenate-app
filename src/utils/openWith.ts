@@ -48,17 +48,11 @@ export async function viewInternallySafely(
       return;
     }
 
-    // ⚠️ CRÍTICO: Cerrar modal y esperar DESPUÉS de validaciones
-    if (options?.closeModal) {
-      console.log('[viewInternallySafely] Cerrando modal...');
-      await Promise.resolve(options.closeModal());
-      console.log('[viewInternallySafely] Modal cerrado, esperando 450ms...');
-      await delay(); // usa 450ms por defecto
-      console.log('[viewInternallySafely] Delay completado, abriendo visor');
-    }
-
     const mimeType = MIME_TYPES[kind];
 
+    // ⚠️ Abrir visor SIN cerrar el modal primero
+    // El modal se cerrará desde ActionSheet después de que esto complete
+    
     if (Platform.OS === 'ios') {
       // iOS: Print para PDF, Sharing (QuickLook) para CSV/ZIP
       if (kind === 'pdf') {
@@ -145,15 +139,6 @@ export async function presentOpenWithSafely(
       return viewInternallySafely(uri, kind, options);
     }
 
-    // ⚠️ CRÍTICO: Cerrar modal y esperar DESPUÉS de todas las validaciones
-    if (options?.closeModal) {
-      console.log('[presentOpenWithSafely] Cerrando modal...');
-      await Promise.resolve(options.closeModal());
-      console.log('[presentOpenWithSafely] Modal cerrado, esperando 450ms...');
-      await delay(); // usa 450ms por defecto
-      console.log('[presentOpenWithSafely] Delay completado, abriendo Share Sheet');
-    }
-
     const mimeType = MIME_TYPES[kind];
     const shareOptions: any = {
       mimeType,
@@ -166,7 +151,11 @@ export async function presentOpenWithSafely(
     }
     
     console.log('[presentOpenWithSafely] Llamando a Sharing.shareAsync con:', shareOptions);
+    
+    // ⚠️ Abrir Share Sheet SIN cerrar el modal primero
+    // El modal se cerrará desde ActionSheet después de que esto complete
     await Sharing.shareAsync(uri, shareOptions);
+    
     console.log('[presentOpenWithSafely] ✓ Share Sheet completado');
     
   } catch (err: any) {

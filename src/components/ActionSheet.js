@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,11 +30,16 @@ const ActionSheet = ({
   // Estado para prevenir cierre durante operaciones
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // ⚠️ CRÍTICO: Resetear estado cuando el modal se abre/cierra
+  useEffect(() => {
+    if (visible) {
+      console.log('[ActionSheet] Modal abierto, reseteando estado');
+      setIsProcessing(false); // Resetear estado al abrir
+    }
+  }, [visible]);
+  
   // 📂 Abrir con... (Share Sheet nativo)
   const handleOpenWith = async () => {
-    // Guardar referencia a onClose para evitar problemas si el componente se desmonta
-    const closeModal = onClose;
-    
     try {
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para abrir');
@@ -51,27 +56,30 @@ const ActionSheet = ({
       
       console.log('[ActionSheet] Llamando a presentOpenWithSafely con kind:', kind);
       
-      // Usar API con cierre de modal integrado
-      await presentOpenWithSafely(fileUri, kind, { closeModal });
+      // ⚠️ NO pasar closeModal - lo haremos manualmente después
+      await presentOpenWithSafely(fileUri, kind);
       
       console.log('[ActionSheet] ✓ presentOpenWithSafely completado');
       
+      // ✅ Cerrar modal DESPUÉS de que Share Sheet esté abierto
+      // Usar setTimeout para que no interrumpa el Share Sheet
+      setTimeout(() => {
+        setIsProcessing(false);
+        onClose();
+      }, 500);
+      
     } catch (error) {
       console.error('[ActionSheet] Error en handleOpenWith:', error);
+      setIsProcessing(false); // ⚠️ Resetear en caso de error
       Alert.alert(
         'Error al compartir',
         'No se pudo abrir el menú para compartir el archivo. Intenta nuevamente.'
       );
-    } finally {
-      setIsProcessing(false); // ✅ Desbloquear
     }
   };
 
   // 📄 Ver en visor interno
   const handleViewInternal = async () => {
-    // Guardar referencia a onClose para evitar problemas si el componente se desmonta
-    const closeModal = onClose;
-    
     try {
       if (!fileUri) {
         Alert.alert('Error', 'No hay archivo para visualizar');
@@ -88,19 +96,24 @@ const ActionSheet = ({
       
       console.log('[ActionSheet] Llamando a viewInternallySafely con kind:', kind);
       
-      // Usar API con cierre de modal integrado
-      await viewInternallySafely(fileUri, kind, { closeModal });
+      // ⚠️ NO pasar closeModal - lo haremos manualmente después
+      await viewInternallySafely(fileUri, kind);
       
       console.log('[ActionSheet] ✓ viewInternallySafely completado');
       
+      // ✅ Cerrar modal DESPUÉS de que visor esté abierto
+      setTimeout(() => {
+        setIsProcessing(false);
+        onClose();
+      }, 500);
+      
     } catch (error) {
       console.error('[ActionSheet] Error al ver archivo:', error);
+      setIsProcessing(false); // ⚠️ Resetear en caso de error
       Alert.alert(
         'Error al visualizar',
         'No se pudo abrir el visor del archivo. Intenta nuevamente.'
       );
-    } finally {
-      setIsProcessing(false); // ✅ Desbloquear
     }
   };
 
