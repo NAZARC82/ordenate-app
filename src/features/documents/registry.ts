@@ -3,13 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { fileExists } from '../../utils/fileExists';
 
-export type DocKind = 'pdf' | 'csv';
+export type DocKind = 'pdf' | 'csv' | 'zip';
+export type FolderType = 'pdf' | 'csv' | 'zip' | 'legacy' | `custom/${string}`;
+
 export type RecentDoc = { 
   id: string; 
   kind: DocKind; 
   name: string; 
   uri: string; 
-  ts: number 
+  ts: number;
+  folder?: FolderType; // Carpeta donde está el archivo
 };
 
 const KEY = 'documents:recent';

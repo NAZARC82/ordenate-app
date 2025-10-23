@@ -35,25 +35,45 @@ export function getExportsDir(): string {
 }
 
 /**
+ * Obtener path de subcarpeta en exports
+ * @param folder - Nombre de la carpeta (ej: 'pdf', 'csv', 'custom/mis-reportes')
+ */
+export function getSubfolderPath(folder: string): string {
+  return `${EXPORTS_DIR}${folder}/`;
+}
+
+/**
  * Mover archivo PDF de forma segura con fallback a copy+delete
  * Verifica existencia del archivo final
  * Usa EXPORTS_DIR (persistente, no temporal)
+ * 
+ * @param tempUri - URI del archivo temporal
+ * @param fileName - Nombre del archivo final
+ * @param subfolder - Subcarpeta opcional (ej: 'pdf', 'custom/mis-reportes')
  */
 export async function movePDFSafe(
   tempUri: string,
-  fileName: string
+  fileName: string,
+  subfolder?: string
 ): Promise<{ uri: string; exists: boolean }> {
   try {
     // Asegurar que el nombre termina en .pdf
     const finalFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
     
-    // Asegurar directorio de destino (EXPORTS_DIR persistente)
-    const targetDir = await ensureDir(EXPORTS_DIR);
+    // Determinar directorio de destino
+    let targetDir: string;
+    if (subfolder) {
+      targetDir = await ensureDir(getSubfolderPath(subfolder));
+    } else {
+      targetDir = await ensureDir(EXPORTS_DIR);
+    }
+    
     const finalUri = `${targetDir}${finalFileName}`;
     
     console.log('[fs-safe] Moviendo PDF a exports persistente:', {
       from: tempUri,
-      to: finalUri
+      to: finalUri,
+      subfolder: subfolder || 'root'
     });
 
     // Verificar que el archivo temporal existe
@@ -116,22 +136,34 @@ export async function movePDFSafe(
 /**
  * Guardar CSV de forma segura con BOM UTF-8 y verificación
  * Usa EXPORTS_DIR (persistente, no temporal)
+ * 
+ * @param fileName - Nombre del archivo
+ * @param csvContent - Contenido CSV
+ * @param subfolder - Subcarpeta opcional (ej: 'csv', 'custom/reportes')
  */
 export async function saveCSVSafe(
   fileName: string,
-  csvContent: string
+  csvContent: string,
+  subfolder?: string
 ): Promise<{ uri: string; exists: boolean }> {
   try {
     // Asegurar que el nombre termina en .csv
     const finalFileName = fileName.endsWith('.csv') ? fileName : `${fileName}.csv`;
     
-    // Asegurar directorio de destino (EXPORTS_DIR persistente)
-    const targetDir = await ensureDir(EXPORTS_DIR);
+    // Determinar directorio de destino
+    let targetDir: string;
+    if (subfolder) {
+      targetDir = await ensureDir(getSubfolderPath(subfolder));
+    } else {
+      targetDir = await ensureDir(EXPORTS_DIR);
+    }
+    
     const finalUri = `${targetDir}${finalFileName}`;
     
     console.log('[fs-safe] Guardando CSV en exports persistente:', {
       to: finalUri,
-      size: csvContent.length
+      size: csvContent.length,
+      subfolder: subfolder || 'root'
     });
 
     // BOM UTF-8 para compatibilidad con Excel
