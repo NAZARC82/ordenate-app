@@ -912,6 +912,9 @@ export async function exportPDFColored(movimientos, opciones = {}) {
       return { success: false, error: 'No hay movimientos para exportar' };
     }
 
+    // Extraer subfolder para carpetas personalizadas
+    const { subfolder } = opciones;
+
     // Cargar preferencias de diseño de PDF (si existen)
     let builderOptions = null;
     let prefs = null;
@@ -961,14 +964,14 @@ export async function exportPDFColored(movimientos, opciones = {}) {
 
     console.log('[exportPDFColored] ✓ PDF generado, moviendo a ubicación final...');
 
-    // ✅ USAR movePDFSafe con verificación
-    const { uri: finalUri, exists } = await movePDFSafe(uri, fileName);
+    // ✅ USAR movePDFSafe con verificación y subfolder opcional
+    const { uri: finalUri, exists } = await movePDFSafe(uri, fileName, subfolder);
     
     if (!exists) {
       throw new Error('El archivo PDF no se creó correctamente');
     }
 
-    // Registrar en documentos recientes
+    // Registrar en documentos recientes con folder
     let documentId = null;
     try {
       const { addRecent } = require('../features/documents/registry');
@@ -977,9 +980,10 @@ export async function exportPDFColored(movimientos, opciones = {}) {
         id: documentId,
         kind: 'pdf',
         name: fileName,
-        uri: finalUri
+        uri: finalUri,
+        folder: subfolder || undefined // Guardar carpeta si existe
       });
-      console.log('[exportPDFColored] Registrado en recientes:', fileName);
+      console.log('[exportPDFColored] Registrado en recientes:', fileName, subfolder ? `(${subfolder})` : '');
     } catch (err) {
       console.warn('[exportPDFColored] No se pudo registrar en recientes:', err);
     }

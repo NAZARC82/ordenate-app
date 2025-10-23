@@ -22,6 +22,7 @@ import ActionSheet from './ActionSheet';
 import { generateSignatureOptions } from '../utils/signatureStorage';
 import { FLAGS } from '../features/pdf/flags';
 import { useExportModalPresets, exportWithZip, shouldCreateZip, showPostExportToast } from '../features/exports/presetIntegration';
+import FolderPicker from './FolderPicker';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -76,6 +77,11 @@ const ExportOptionsModal = ({
   const [exportResult, setExportResult] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  
+  // Estado para selector "Guardar en"
+  const [saveLocation, setSaveLocation] = useState('auto'); // 'auto' | 'last' | 'choose'
+  const [selectedFolder, setSelectedFolder] = useState(null);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
 
   // Hook de presets - carga automáticamente al abrir
   const { preset, isLoading: presetsLoading, saveCurrentSelection } = useExportModalPresets({
@@ -88,6 +94,14 @@ const ExportOptionsModal = ({
         setExportFormat('csv');
       } else {
         setExportFormat('pdf');
+      }
+      
+      // Restaurar saveLocation y lastFolder
+      if (loadedPreset.saveLocation) {
+        setSaveLocation(loadedPreset.saveLocation);
+      }
+      if (loadedPreset.lastFolder) {
+        setSelectedFolder(loadedPreset.lastFolder);
       }
     }
   });
@@ -299,6 +313,23 @@ const ExportOptionsModal = ({
         return;
       }
       
+      // Determinar subfolder según saveLocation
+      let subfolder = undefined;
+      
+      if (saveLocation === 'auto') {
+        // Automático por tipo → dejar undefined (comportamiento actual)
+        subfolder = undefined;
+        console.log('[export] Guardar en: Automático por tipo');
+      } else if (saveLocation === 'last' && preset.lastFolder) {
+        // Última carpeta usada
+        subfolder = `custom/${preset.lastFolder}`;
+        console.log('[export] Guardar en: Última carpeta', preset.lastFolder);
+      } else if (saveLocation === 'choose' && selectedFolder) {
+        // Carpeta seleccionada manualmente
+        subfolder = `custom/${selectedFolder}`;
+        console.log('[export] Guardar en: Carpeta elegida', selectedFolder);
+      }
+      
       // Generar contexto para el nombre del archivo
       const contexto = {
         rango: rangoFecha,
@@ -312,12 +343,14 @@ const ExportOptionsModal = ({
       // Guardar opciones antes de exportar
       await saveOptions();
       
-      // Guardar preset con el formato seleccionado
+      // Guardar preset con el formato seleccionado + lastFolder si eligió carpeta
       await saveCurrentSelection({
         includePdf: exportFormat === 'pdf' || exportFormat === 'both',
         includeCsv: exportFormat === 'csv' || exportFormat === 'both',
         includeTotals: true,
-        dateRange: rangoFecha
+        dateRange: rangoFecha,
+        lastFolder: saveLocation === 'choose' && selectedFolder ? selectedFolder : preset.lastFolder,
+        saveLocation: saveLocation
       });
       
       // Generar opciones de firma si están habilitadas
@@ -337,6 +370,7 @@ const ExportOptionsModal = ({
           subtitulo: `${movsFiltrados.length} movimiento(s) - ${getRangoTexto()}`,
           contexto: 'filtrado',
           signatures: signatureOptions,
+          subfolder, // NUEVO: pasar carpeta de destino
           ...contexto
         });
       }
@@ -346,6 +380,7 @@ const ExportOptionsModal = ({
         csvResult = await exportCSV(movsFiltrados, {
           columnas: columnasSeleccionadas,
           incluirFirmas: firmas.incluirEnCSV,
+          subfolder, // NUEVO: pasar carpeta de destino
           ...contexto
         });
       }
@@ -432,6 +467,17 @@ const ExportOptionsModal = ({
         return;
       }
       
+      // Determinar subfolder según saveLocation
+      let subfolder = undefined;
+      
+      if (saveLocation === 'auto') {
+        subfolder = undefined;
+      } else if (saveLocation === 'last' && preset.lastFolder) {
+        subfolder = `custom/${preset.lastFolder}`;
+      } else if (saveLocation === 'choose' && selectedFolder) {
+        subfolder = `custom/${selectedFolder}`;
+      }
+      
       // Generar contexto para el nombre del archivo
       const contexto = {
         rango: rangoFecha,
@@ -457,6 +503,7 @@ const ExportOptionsModal = ({
         contexto: 'filtrado',
         includeSignatureColumns: firmas.incluirEnCSV,
         signatures: signatureOptions,
+        subfolder, // NUEVO: pasar carpeta de destino
         ...contexto
       });
       
@@ -495,6 +542,16 @@ const ExportOptionsModal = ({
   };
 
   // Manejar vista previa
+  // Handler para seleccionar carpeta del FolderPicker
+  const handleFolderSelect = (subfolder) => {
+    // subfolder viene como 'custom/<nombre>'
+    const folderName = subfolder.replace('custom/', '');
+    setSelectedFolder(folderName);
+    setSaveLocation('choose');
+    setShowFolderPicker(false);
+    console.log('[export] Carpeta seleccionada:', folderName);
+  };
+
   const handleVistaPrevia = async () => {
     console.log('[export] Iniciando vista previa...');
     // Prevenir doble navegación
@@ -900,6 +957,75 @@ const ExportOptionsModal = ({
               </Text>
             )}
           </View>
+
+          {/* Selector "Guardar en" */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📂 Guardar en:</Text>
+            
+            {/* Opción 1: Automático */}
+            <TouchableOpacity 
+              style={[
+                styles.saveOption, 
+                saveLocation === 'auto' && styles.saveOptionActive
+              ]}
+              onPress={() => setSaveLocation('auto')}
+            >
+              <Ionicons 
+                name={saveLocation === 'auto' ? 'radio-button-on' : 'radio-button-off'} 
+                size={24} 
+                color={saveLocation === 'auto' ? '#6A5ACD' : '#666'} 
+              />
+              <View style={styles.saveOptionText}>
+                <Text style={styles.saveOptionTitle}>Automático por tipo</Text>
+                <Text style={styles.saveOptionSubtitle}>PDF/, CSV/ según formato</Text>
+              </View>
+            </TouchableOpacity>
+            
+            {/* Opción 2: Última carpeta (solo si existe) */}
+            {preset.lastFolder && (
+              <TouchableOpacity 
+                style={[
+                  styles.saveOption, 
+                  saveLocation === 'last' && styles.saveOptionActive
+                ]}
+                onPress={() => setSaveLocation('last')}
+              >
+                <Ionicons 
+                  name={saveLocation === 'last' ? 'radio-button-on' : 'radio-button-off'} 
+                  size={24} 
+                  color={saveLocation === 'last' ? '#6A5ACD' : '#666'} 
+                />
+                <View style={styles.saveOptionText}>
+                  <Text style={styles.saveOptionTitle}>Última carpeta usada</Text>
+                  <Text style={styles.saveOptionSubtitle}>{preset.lastFolder}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            
+            {/* Opción 3: Elegir carpeta */}
+            <TouchableOpacity 
+              style={[
+                styles.saveOption, 
+                saveLocation === 'choose' && styles.saveOptionActive
+              ]}
+              onPress={() => {
+                setSaveLocation('choose');
+                setShowFolderPicker(true);
+              }}
+            >
+              <Ionicons 
+                name={saveLocation === 'choose' ? 'radio-button-on' : 'radio-button-off'} 
+                size={24} 
+                color={saveLocation === 'choose' ? '#6A5ACD' : '#666'} 
+              />
+              <View style={styles.saveOptionText}>
+                <Text style={styles.saveOptionTitle}>Elegir carpeta...</Text>
+                {selectedFolder && (
+                  <Text style={styles.saveOptionSubtitle}>Seleccionada: {selectedFolder}</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
           
           {/* Primera fila - Vista Previa */}
           <TouchableOpacity 
@@ -933,6 +1059,13 @@ const ExportOptionsModal = ({
         </View>
       </View>
     </Modal>
+
+    {/* FolderPicker Modal */}
+    <FolderPicker
+      visible={showFolderPicker}
+      onClose={() => setShowFolderPicker(false)}
+      onSelect={handleFolderSelect}
+    />
 
     {/* ActionSheet para compartir */}
     <ActionSheet
@@ -1216,6 +1349,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     lineHeight: 16,
+  },
+  // Estilos para el selector "Guardar en"
+  saveOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 14,
+    marginBottom: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  saveOptionActive: {
+    borderColor: '#6A5ACD',
+    backgroundColor: '#F5F3FF',
+  },
+  saveOptionText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  saveOptionTitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 2,
+  },
+  saveOptionSubtitle: {
+    fontSize: 13,
+    color: '#666',
   },
 });
 

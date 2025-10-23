@@ -138,6 +138,9 @@ export async function exportCSV(movimientos, opciones = {}) {
       return { success: false, error: 'No hay movimientos para exportar' };
     }
 
+    // Extraer subfolder para carpetas personalizadas
+    const { subfolder } = opciones;
+
     const config = { contexto: 'reporte', includeHeaders: true, ...opciones };
     const csvContent = buildCSVContent(movimientos, config);
     
@@ -155,14 +158,14 @@ export async function exportCSV(movimientos, opciones = {}) {
     
     console.log('[exportCSV] Guardando CSV con BOM UTF-8...');
     
-    // ✅ USAR saveCSVSafe con BOM y verificación
-    const { uri: fileUri, exists } = await saveCSVSafe(fileName, csvContent);
+    // ✅ USAR saveCSVSafe con BOM, verificación y subfolder opcional
+    const { uri: fileUri, exists } = await saveCSVSafe(fileName, csvContent, subfolder);
     
     if (!exists) {
       throw new Error('El archivo CSV no se creó correctamente');
     }
 
-    // Registrar en documentos recientes
+    // Registrar en documentos recientes con folder
     let documentId = null;
     try {
       const { addRecent } = require('../features/documents/registry');
@@ -171,9 +174,10 @@ export async function exportCSV(movimientos, opciones = {}) {
         id: documentId,
         kind: 'csv',
         name: fileName,
-        uri: fileUri
+        uri: fileUri,
+        folder: subfolder || undefined // Guardar carpeta si existe
       });
-      console.log('[exportCSV] Registrado en recientes:', fileName);
+      console.log('[exportCSV] Registrado en recientes:', fileName, subfolder ? `(${subfolder})` : '');
     } catch (err) {
       console.warn('[exportCSV] No se pudo registrar en recientes:', err);
     }
