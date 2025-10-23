@@ -17,6 +17,8 @@ export interface ExportPresetV1 {
   includeCsv: boolean;
   includeTotals: boolean;
   lastUsedAt: number; // Date.now()
+  lastFolder?: string; // Última carpeta custom usada (ej: 'mis-reportes')
+  saveLocation?: 'auto' | 'last' | 'choose'; // Estrategia de guardar
 }
 
 export const DEFAULT_PRESET: ExportPresetV1 = {
@@ -25,6 +27,8 @@ export const DEFAULT_PRESET: ExportPresetV1 = {
   includeCsv: false,
   includeTotals: true,
   lastUsedAt: 0,
+  lastFolder: undefined,
+  saveLocation: 'auto', // Por defecto: automático por tipo
 };
 
 /**
@@ -52,6 +56,8 @@ export async function loadPreset(): Promise<ExportPresetV1> {
       includeCsv: parsed.includeCsv ?? DEFAULT_PRESET.includeCsv,
       includeTotals: parsed.includeTotals ?? DEFAULT_PRESET.includeTotals,
       lastUsedAt: parsed.lastUsedAt || 0,
+      lastFolder: parsed.lastFolder || undefined,
+      saveLocation: parsed.saveLocation || DEFAULT_PRESET.saveLocation,
     };
   } catch (error) {
     // Manejo de errores silencioso - retornar defaults
