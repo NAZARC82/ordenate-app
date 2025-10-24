@@ -25,7 +25,8 @@ const ActionSheet = ({
   fileName, 
   mimeType = 'application/pdf',
   documentId, // ID del documento en Recientes para poder eliminarlo
-  navigation // Para navegar a DocumentManager/Diseño
+  navigation, // Para navegar a DocumentManager/Diseño
+  onMovePress, // Callback opcional para abrir MoveToSheet
 }) => {
   // Estado para prevenir cierre durante operaciones
   const [isProcessing, setIsProcessing] = useState(false);
@@ -217,6 +218,21 @@ const ActionSheet = ({
       color: '#6A5ACD',
       onPress: handleViewInternal,
       show: true
+    },
+    {
+      id: 'move',
+      title: 'Mover a...',
+      icon: 'folder-open-outline',
+      color: '#8E44AD',
+      onPress: () => {
+        if (onMovePress) {
+          console.log('[ActionSheet] Abriendo MoveToSheet');
+          onMovePress();
+        } else {
+          Alert.alert('Info', 'Función "Mover a..." no disponible en este contexto');
+        }
+      },
+      show: !!onMovePress // Solo mostrar si se provee el callback
     },
     {
       id: 'delete',

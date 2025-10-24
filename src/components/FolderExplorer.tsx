@@ -14,6 +14,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { folderPath } from '../features/documents/folders';
 import { showToast, showErrorToast } from '../utils/toast';
 import ActionSheet from './ActionSheet';
+import MoveToSheet from './MoveToSheet';
 
 interface FileInfo {
   name: string;
@@ -32,6 +33,7 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
   const [loading, setLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showMoveSheet, setShowMoveSheet] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -90,6 +92,17 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
     console.log('[explorer] Archivo seleccionado:', file.name);
     setSelectedFile(file);
     setShowActionSheet(true);
+  };
+
+  const handleOpenMoveSheet = () => {
+    setShowActionSheet(false);
+    setShowMoveSheet(true);
+  };
+
+  const handleMoveComplete = async () => {
+    setShowMoveSheet(false);
+    setSelectedFile(null);
+    await loadFiles(); // Refrescar lista después de mover
   };
 
   const formatSize = (bytes: number): string => {
@@ -208,6 +221,22 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
           }
           documentId={undefined}
           navigation={undefined}
+          onMovePress={handleOpenMoveSheet}
+        />
+      )}
+
+      {/* MoveToSheet para mover archivo */}
+      {selectedFile && showMoveSheet && (
+        <MoveToSheet
+          visible={showMoveSheet}
+          fileUri={selectedFile.uri}
+          fileName={selectedFile.name}
+          currentFolder={folderType}
+          onClose={() => {
+            setShowMoveSheet(false);
+            setSelectedFile(null);
+          }}
+          onMoveComplete={handleMoveComplete}
         />
       )}
     </>
