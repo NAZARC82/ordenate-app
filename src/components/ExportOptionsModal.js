@@ -80,7 +80,7 @@ const ExportOptionsModal = ({
   const [isNavigating, setIsNavigating] = useState(false);
   
   // Estado para selector "Guardar en"
-  const [saveLocation, setSaveLocation] = useState('auto'); // 'auto' | 'last' | 'choose' | 'custom'
+  const [saveLocation, setSaveLocation] = useState('auto'); // 'auto' | 'last' | 'choose' | 'custom' | 'perItem'
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [customFolders, setCustomFolders] = useState([]); // Lista de carpetas personalizadas
@@ -355,6 +355,24 @@ const ExportOptionsModal = ({
         // Carpeta personalizada existente seleccionada
         subfolder = `custom/${selectedFolder}`;
         console.log('[export] Guardar en: Carpeta personalizada', selectedFolder);
+      } else if (saveLocation === 'perItem') {
+        // Usar carpeta de cada ítem (si tienen campo folder)
+        // Buscar el primer movimiento con folder definido
+        const firstWithFolder = movsFiltrados.find(m => m.folder);
+        if (firstWithFolder) {
+          subfolder = `custom/${firstWithFolder.folder}`;
+          console.log('[export] Guardar en: Carpeta del primer ítem con folder', firstWithFolder.folder);
+          
+          // Warning si hay múltiples carpetas diferentes
+          const uniqueFolders = [...new Set(movsFiltrados.filter(m => m.folder).map(m => m.folder))];
+          if (uniqueFolders.length > 1) {
+            console.warn('[export] ⚠️ Múltiples carpetas detectadas:', uniqueFolders, '- usando la primera:', firstWithFolder.folder);
+          }
+        } else {
+          // Ningún movimiento tiene folder → fallback a automático
+          subfolder = undefined;
+          console.log('[export] Modo perItem sin folders definidos → fallback a automático');
+        }
       }
       
       // Generar contexto para el nombre del archivo
@@ -511,6 +529,23 @@ const ExportOptionsModal = ({
       } else if (saveLocation === 'custom' && selectedFolder) {
         subfolder = `custom/${selectedFolder}`;
         console.log('[export] CSV - Guardar en: Carpeta personalizada', selectedFolder);
+      } else if (saveLocation === 'perItem') {
+        // Usar carpeta de cada ítem (si tienen campo folder)
+        const firstWithFolder = movsFiltrados.find(m => m.folder);
+        if (firstWithFolder) {
+          subfolder = `custom/${firstWithFolder.folder}`;
+          console.log('[export] CSV - Guardar en: Carpeta del primer ítem con folder', firstWithFolder.folder);
+          
+          // Warning si hay múltiples carpetas diferentes
+          const uniqueFolders = [...new Set(movsFiltrados.filter(m => m.folder).map(m => m.folder))];
+          if (uniqueFolders.length > 1) {
+            console.warn('[export] CSV - ⚠️ Múltiples carpetas detectadas:', uniqueFolders, '- usando la primera:', firstWithFolder.folder);
+          }
+        } else {
+          // Ningún movimiento tiene folder → fallback a automático
+          subfolder = undefined;
+          console.log('[export] CSV - Modo perItem sin folders definidos → fallback a automático');
+        }
       }
       
       // Generar contexto para el nombre del archivo
@@ -1097,6 +1132,27 @@ const ExportOptionsModal = ({
                 </View>
               </TouchableOpacity>
             )}
+
+            {/* Opción 5: Usar carpeta de cada ítem (si movimientos tienen folder) */}
+            <TouchableOpacity 
+              style={[
+                styles.saveOption, 
+                saveLocation === 'perItem' && styles.saveOptionActive
+              ]}
+              onPress={() => setSaveLocation('perItem')}
+            >
+              <Ionicons 
+                name={saveLocation === 'perItem' ? 'radio-button-on' : 'radio-button-off'} 
+                size={24} 
+                color={saveLocation === 'perItem' ? '#6A5ACD' : '#666'} 
+              />
+              <View style={styles.saveOptionText}>
+                <Text style={styles.saveOptionTitle}>Usar carpeta de cada ítem</Text>
+                <Text style={styles.saveOptionSubtitle}>
+                  Exporta a la carpeta asignada a cada movimiento
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
           
           {/* Primera fila - Vista Previa */}

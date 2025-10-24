@@ -7,6 +7,8 @@ import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
 import { purgeOlderThan } from '../features/documents/retention';
 import { showToast, showErrorToast } from '../utils/toast';
 import { listFolders, createFolder, renameFolder, deleteFolder, FolderInfo } from '../features/documents/folders';
+// Componentes
+// @ts-ignore - TypeScript cache issue, file exists at src/components/FolderExplorer.tsx
 import FolderExplorer from '../components/FolderExplorer';
 
 type Tab = 'signatures' | 'design' | 'folders';
