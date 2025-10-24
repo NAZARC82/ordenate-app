@@ -8,11 +8,14 @@ import {
   StyleSheet,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 import { folderPath } from '../features/documents/folders';
 import { showToast, showErrorToast } from '../utils/toast';
+import { importMultipleIntoFolder } from '../utils/imports';
 import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
 
@@ -31,6 +34,7 @@ interface FolderExplorerProps {
 export default function FolderExplorer({ folderType, onClose }: FolderExplorerProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
@@ -105,6 +109,69 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
     await loadFiles(); // Refrescar lista después de mover
   };
 
+  const handleImport = async () => {
+    try {
+      console.log('[explorer] Iniciando importación de archivos...');
+      
+      // Abrir DocumentPicker
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'text/csv', 'application/vnd.ms-excel'],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      
+      console.log('[explorer] DocumentPicker result:', result);
+      
+      // Usuario canceló
+      if (result.canceled) {
+        console.log('[explorer] Importación cancelada por el usuario');
+        return;
+      }
+      
+      // Validar que hay archivos
+      if (!result.assets || result.assets.length === 0) {
+        showErrorToast('No se seleccionaron archivos');
+        return;
+      }
+      
+      setImporting(true);
+      
+      // Importar archivos
+      const results = await importMultipleIntoFolder(result.assets, folderType);
+      
+      // Contar éxitos y fallos
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      
+      console.log('[explorer] Importación completada:', { success: successCount, failed: failCount });
+      
+      // Refrescar lista
+      await loadFiles();
+      
+      // Mostrar resultado
+      if (failCount === 0) {
+        showToast(`✅ ${successCount} archivo${successCount > 1 ? 's importados' : ' importado'}`);
+      } else if (successCount > 0) {
+        showToast(`⚠️ ${successCount} importados, ${failCount} fallidos`);
+      } else {
+        showErrorToast('No se pudo importar ningún archivo');
+      }
+      
+      // Mostrar detalles de errores si los hay
+      const errors = results.filter(r => !r.success);
+      if (errors.length > 0 && errors.length <= 3) {
+        const errorMessages = errors.map(e => e.error).join('\n');
+        Alert.alert('Algunos archivos no se importaron', errorMessages);
+      }
+      
+    } catch (error: any) {
+      console.error('[explorer] Error al importar:', error);
+      showErrorToast('Error al importar archivos');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const formatSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -157,7 +224,18 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
                 {files.length} archivo{files.length !== 1 ? 's' : ''}
               </Text>
             </View>
-            <View style={{ width: 40 }} />
+            <TouchableOpacity 
+              style={s.importBtn} 
+              onPress={handleImport}
+              disabled={importing || loading}
+              testID="btn-import"
+            >
+              {importing ? (
+                <ActivityIndicator size="small" color="#3E7D75" />
+              ) : (
+                <Ionicons name="cloud-upload-outline" size={24} color="#3E7D75" />
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Body */}
@@ -263,6 +341,14 @@ const s = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: '#F5F5F5',
+  },
+  importBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F0F7F6',
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     flex: 1,

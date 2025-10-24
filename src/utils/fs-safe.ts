@@ -224,3 +224,110 @@ export async function fileExistsSafe(uri: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Asegura que un nombre de archivo sea único en un directorio
+ * Si existe, agrega (1), (2), etc. antes de la extensión
+ * @param dir - Directorio donde verificar
+ * @param name - Nombre base del archivo
+ * @returns Nombre único garantizado
+ */
+export async function ensureUniqueFilename(dir: string, name: string): Promise<string> {
+  // Normalizar directorio (debe terminar en /)
+  const normalizedDir = dir.endsWith('/') ? dir : `${dir}/`;
+  
+  // Separar nombre y extensión
+  const lastDot = name.lastIndexOf('.');
+  const baseName = lastDot > 0 ? name.substring(0, lastDot) : name;
+  const extension = lastDot > 0 ? name.substring(lastDot) : '';
+  
+  let candidate = name;
+  let counter = 1;
+  
+  while (true) {
+    const fullPath = `${normalizedDir}${candidate}`;
+    const info = await FileSystem.getInfoAsync(fullPath);
+    
+    if (!info.exists) {
+      console.log('[fs-safe] Nombre único encontrado:', candidate);
+      return candidate;
+    }
+    
+    // Generar siguiente candidato
+    candidate = `${baseName}(${counter})${extension}`;
+    counter++;
+    
+    // Safety: evitar loop infinito
+    if (counter > 1000) {
+      console.error('[fs-safe] No se pudo generar nombre único después de 1000 intentos');
+      throw new Error('No se pudo generar nombre único para el archivo');
+    }
+  }
+}
+
+/**
+ * Copia un archivo a un directorio específico con nombre dado
+ * Maneja URIs temporales de iOS/Android correctamente
+ * @param targetDir - Directorio destino (debe existir)
+ * @param fromUri - URI origen del archivo
+ * @param name - Nombre final del archivo
+ * @returns URI final del archivo copiado
+ */
+export async function copyInto(
+  targetDir: string,
+  fromUri: string,
+  name: string
+): Promise<{ uri: string }> {
+  try {
+    // Normalizar directorio (debe terminar en /)
+    const normalizedDir = targetDir.endsWith('/') ? targetDir : `${targetDir}/`;
+    const finalUri = `${normalizedDir}${name}`;
+    
+    console.log('[fs-safe] Copiando archivo:', {
+      from: fromUri.substring(fromUri.lastIndexOf('/') + 1),
+      to: finalUri.substring(finalUri.lastIndexOf('/') + 1)
+    });
+    
+    // Verificar que el origen existe
+    const sourceInfo = await FileSystem.getInfoAsync(fromUri);
+    if (!sourceInfo.exists) {
+      throw new Error('El archivo origen no existe');
+    }
+    
+    // Si el destino existe, eliminarlo (reemplazar)
+    try {
+      await FileSystem.deleteAsync(finalUri, { idempotent: true });
+    } catch (e) {
+      // Ignorar si no existe
+    }
+    
+    // Copiar archivo
+    await FileSystem.copyAsync({
+      from: fromUri,
+      to: finalUri
+    });
+    
+    // Verificar que se copió correctamente
+    const destInfo = await FileSystem.getInfoAsync(finalUri);
+    if (!destInfo.exists) {
+      throw new Error('El archivo no se copió correctamente');
+    }
+    
+    console.log('[fs-safe] ✓ Archivo copiado exitosamente:', {
+      uri: finalUri,
+      size: (destInfo as any).size || 'unknown'
+    });
+    
+    // Asegurar que el URI tiene prefijo file://
+    const normalizedUri = finalUri.startsWith('file://') 
+      ? finalUri 
+      : `file://${finalUri}`;
+    
+    return { uri: normalizedUri };
+    
+  } catch (error) {
+    console.error('[fs-safe] Error en copyInto:', error);
+    throw error;
+  }
+}
+
