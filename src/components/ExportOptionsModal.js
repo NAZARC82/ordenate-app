@@ -23,6 +23,7 @@ import { generateSignatureOptions } from '../utils/signatureStorage';
 import { FLAGS } from '../features/pdf/flags';
 import { useExportModalPresets, exportWithZip, shouldCreateZip, showPostExportToast } from '../features/exports/presetIntegration';
 import FolderPicker from './FolderPicker';
+import { listFolders } from '../features/documents/folders';
 
 // Clave para AsyncStorage
 const STORAGE_KEY = 'exportOptions:v1';
@@ -79,9 +80,11 @@ const ExportOptionsModal = ({
   const [isNavigating, setIsNavigating] = useState(false);
   
   // Estado para selector "Guardar en"
-  const [saveLocation, setSaveLocation] = useState('auto'); // 'auto' | 'last' | 'choose'
+  const [saveLocation, setSaveLocation] = useState('auto'); // 'auto' | 'last' | 'choose' | 'custom'
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [customFolders, setCustomFolders] = useState([]); // Lista de carpetas personalizadas
+  const [showCustomPicker, setShowCustomPicker] = useState(false); // Modal picker de carpetas custom
 
   // Hook de presets - carga automáticamente al abrir
   const { preset, isLoading: presetsLoading, saveCurrentSelection } = useExportModalPresets({
@@ -105,6 +108,26 @@ const ExportOptionsModal = ({
       }
     }
   });
+
+  // Cargar carpetas personalizadas cuando se abre el modal
+  useEffect(() => {
+    if (visible) {
+      loadCustomFolders();
+    }
+  }, [visible]);
+
+  const loadCustomFolders = async () => {
+    try {
+      console.log('[ExportOptionsModal] Cargando carpetas personalizadas...');
+      const folders = await listFolders();
+      const customOnly = folders.filter(f => f.type === 'custom');
+      setCustomFolders(customOnly);
+      console.log('[ExportOptionsModal] Carpetas custom cargadas:', customOnly.length);
+    } catch (error) {
+      console.error('[ExportOptionsModal] Error al cargar carpetas custom:', error);
+      setCustomFolders([]);
+    }
+  };
 
   // Resetear estado de navegación cuando se cierra el modal
   useEffect(() => {
@@ -325,9 +348,13 @@ const ExportOptionsModal = ({
         subfolder = `custom/${preset.lastFolder}`;
         console.log('[export] Guardar en: Última carpeta', preset.lastFolder);
       } else if (saveLocation === 'choose' && selectedFolder) {
-        // Carpeta seleccionada manualmente
+        // Carpeta seleccionada manualmente con FolderPicker (crear nueva)
         subfolder = `custom/${selectedFolder}`;
         console.log('[export] Guardar en: Carpeta elegida', selectedFolder);
+      } else if (saveLocation === 'custom' && selectedFolder) {
+        // Carpeta personalizada existente seleccionada
+        subfolder = `custom/${selectedFolder}`;
+        console.log('[export] Guardar en: Carpeta personalizada', selectedFolder);
       }
       
       // Generar contexto para el nombre del archivo
@@ -349,7 +376,9 @@ const ExportOptionsModal = ({
         includeCsv: exportFormat === 'csv' || exportFormat === 'both',
         includeTotals: true,
         dateRange: rangoFecha,
-        lastFolder: saveLocation === 'choose' && selectedFolder ? selectedFolder : preset.lastFolder,
+        lastFolder: (saveLocation === 'choose' || saveLocation === 'custom') && selectedFolder 
+          ? selectedFolder 
+          : preset.lastFolder,
         saveLocation: saveLocation
       });
       
@@ -472,10 +501,16 @@ const ExportOptionsModal = ({
       
       if (saveLocation === 'auto') {
         subfolder = undefined;
+        console.log('[export] CSV - Guardar en: Automático por tipo');
       } else if (saveLocation === 'last' && preset.lastFolder) {
         subfolder = `custom/${preset.lastFolder}`;
+        console.log('[export] CSV - Guardar en: Última carpeta', preset.lastFolder);
       } else if (saveLocation === 'choose' && selectedFolder) {
         subfolder = `custom/${selectedFolder}`;
+        console.log('[export] CSV - Guardar en: Carpeta elegida', selectedFolder);
+      } else if (saveLocation === 'custom' && selectedFolder) {
+        subfolder = `custom/${selectedFolder}`;
+        console.log('[export] CSV - Guardar en: Carpeta personalizada', selectedFolder);
       }
       
       // Generar contexto para el nombre del archivo
@@ -490,6 +525,18 @@ const ExportOptionsModal = ({
       
       // Guardar opciones antes de exportar
       await saveOptions();
+      
+      // Guardar preset con lastFolder si se usó carpeta personalizada
+      await saveCurrentSelection({
+        includePdf: false,
+        includeCsv: true,
+        includeTotals: true,
+        dateRange: rangoFecha,
+        lastFolder: (saveLocation === 'choose' || saveLocation === 'custom') && selectedFolder 
+          ? selectedFolder 
+          : preset.lastFolder,
+        saveLocation: saveLocation
+      });
       
       // Generar opciones de firma si están habilitadas para CSV
       let signatureOptions = null;
@@ -1025,6 +1072,31 @@ const ExportOptionsModal = ({
                 )}
               </View>
             </TouchableOpacity>
+
+            {/* Opción 4: Carpeta personalizada (solo si existen carpetas custom) */}
+            {customFolders.length > 0 && (
+              <TouchableOpacity 
+                style={[
+                  styles.saveOption, 
+                  saveLocation === 'custom' && styles.saveOptionActive
+                ]}
+                onPress={() => {
+                  setShowCustomPicker(true);
+                }}
+              >
+                <Ionicons 
+                  name={saveLocation === 'custom' ? 'radio-button-on' : 'radio-button-off'} 
+                  size={24} 
+                  color={saveLocation === 'custom' ? '#6A5ACD' : '#666'} 
+                />
+                <View style={styles.saveOptionText}>
+                  <Text style={styles.saveOptionTitle}>Carpeta personalizada...</Text>
+                  {saveLocation === 'custom' && selectedFolder && (
+                    <Text style={styles.saveOptionSubtitle}>📁 {selectedFolder}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
           
           {/* Primera fila - Vista Previa */}
@@ -1066,6 +1138,53 @@ const ExportOptionsModal = ({
       onClose={() => setShowFolderPicker(false)}
       onSelect={handleFolderSelect}
     />
+
+    {/* Custom Folder Picker - Simple picker para carpetas personalizadas */}
+    <Modal
+      visible={showCustomPicker}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowCustomPicker(false)}
+    >
+      <View style={styles.customPickerOverlay}>
+        <View style={styles.customPickerSheet}>
+          <View style={styles.customPickerHeader}>
+            <Text style={styles.customPickerTitle}>Carpetas personalizadas</Text>
+            <TouchableOpacity 
+              onPress={() => setShowCustomPicker(false)}
+              style={styles.customPickerCloseBtn}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.customPickerBody}>
+            {customFolders.map((folder) => (
+              <TouchableOpacity
+                key={folder.name}
+                style={styles.customFolderOption}
+                onPress={() => {
+                  console.log('[export] Seleccionada carpeta custom:', folder.name);
+                  setSelectedFolder(folder.name);
+                  setSaveLocation('custom');
+                  setShowCustomPicker(false);
+                }}
+              >
+                <View style={styles.customFolderIcon}>
+                  <Ionicons name="folder" size={24} color="#6A5ACD" />
+                </View>
+                <View style={styles.customFolderContent}>
+                  <Text style={styles.customFolderName}>{folder.name}</Text>
+                  <Text style={styles.customFolderCount}>
+                    {folder.filesCount} archivo{folder.filesCount !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
 
     {/* ActionSheet para compartir */}
     <ActionSheet
@@ -1378,6 +1497,75 @@ const styles = StyleSheet.create({
   saveOptionSubtitle: {
     fontSize: 13,
     color: '#666',
+  },
+  // Estilos para Custom Folder Picker
+  customPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  customPickerSheet: {
+    backgroundColor: '#FCFCF8',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    paddingBottom: 40,
+  },
+  customPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  customPickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4D3527',
+  },
+  customPickerCloseBtn: {
+    padding: 4,
+  },
+  customPickerBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  customFolderOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  customFolderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  customFolderContent: {
+    flex: 1,
+  },
+  customFolderName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4D3527',
+    marginBottom: 2,
+  },
+  customFolderCount: {
+    fontSize: 13,
+    color: '#999',
   },
 });
 
