@@ -100,15 +100,18 @@ export default function HistoryPanel(props) {
   const handleAddToFolder = async (folderName) => {
     if (!selectedMovement) return;
     
-    console.log('[HistoryPanel] Añadiendo movimiento a carpeta:', folderName);
+    // FolderPicker retorna 'custom/nombre', pero addToFolder espera solo 'nombre'
+    const cleanFolderName = folderName.replace('custom/', '');
+    
+    console.log('[HistoryPanel] Añadiendo movimiento a carpeta:', cleanFolderName);
     
     const success = await addToFolder({
       type: selectedMovement.tipo,
       refId: selectedMovement.id,
-      folderName,
+      folderName: cleanFolderName,
       monto: selectedMovement.monto || 0,
       concepto: selectedMovement.nota || selectedMovement.concepto || `${selectedMovement.tipo} de $${selectedMovement.monto}`,
-      fecha: selectedMovement.fechaISO || selectedMovement.fecha,
+      fecha: selectedMovement.fechaISO, // fechaISO es obligatorio en MovimientosContext
       estado: selectedMovement.estado || 'pendiente'
     });
 
