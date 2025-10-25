@@ -30,9 +30,10 @@ interface FileInfo {
 interface FolderExplorerProps {
   folderType: string; // 'pdf' | 'csv' | 'zip' | 'custom/<nombre>'
   onClose: () => void;
+  navigation?: any; // Navigation prop para navegar a detalles
 }
 
-export default function FolderExplorer({ folderType, onClose }: FolderExplorerProps) {
+export default function FolderExplorer({ folderType, onClose, navigation }: FolderExplorerProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,23 +146,41 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
 
   const handleItemPress = (item: FolderItem) => {
     console.log('[explorer] Item vinculado seleccionado:', item.type, item.id);
-    setSelectedItem(item);
-    // TODO: Navegar a pantalla de detalle según tipo
-    // Para ahora, mostrar info simple
+    
+    if (!navigation) {
+      Alert.alert('Info', 'Navegación no disponible en este contexto');
+      return;
+    }
+    
+    // Navegar según tipo
     if (item.type === 'pago' || item.type === 'cobro') {
       const mov = item as PagoItem | CobroItem;
-      Alert.alert(
-        `${item.type === 'pago' ? 'Pago' : 'Cobro'}`,
-        `${mov.concepto}\n$${mov.monto.toFixed(2)}\nEstado: ${mov.estado}\n\nNavegación al detalle en desarrollo...`,
-        [{ text: 'OK' }]
-      );
+      console.log('[explorer] Navegando a MovementDetail, refId:', mov.refId);
+      
+      // Cerrar modal y navegar
+      onClose();
+      
+      // Intentar navegar al root navigator
+      const parent = navigation.getParent();
+      if (parent) {
+        parent.navigate('MovementDetail', { mode: 'view', id: mov.refId });
+      } else {
+        navigation.navigate('MovementDetail', { mode: 'view', id: mov.refId });
+      }
     } else if (item.type === 'recordatorio') {
       const rem = item as RecordatorioItem;
-      Alert.alert(
-        'Recordatorio',
-        `${rem.titulo}\nPrioridad: ${rem.prioridad}\n\nNavegación al detalle en desarrollo...`,
-        [{ text: 'OK' }]
-      );
+      console.log('[explorer] Navegando a ReminderForm, refId:', rem.refId);
+      
+      // Cerrar modal y navegar
+      onClose();
+      
+      // Intentar navegar al root navigator
+      const parent = navigation.getParent();
+      if (parent) {
+        parent.navigate('ReminderForm', { mode: 'edit', id: rem.refId });
+      } else {
+        navigation.navigate('ReminderForm', { mode: 'edit', id: rem.refId });
+      }
     }
   };
 

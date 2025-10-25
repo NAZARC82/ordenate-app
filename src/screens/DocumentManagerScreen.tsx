@@ -26,7 +26,7 @@ const COLOR_PALETTE = [
   { hex: '#D35400', name: 'Naranja' },
 ];
 
-export default function DocumentManagerScreen({ route }: any) {
+export default function DocumentManagerScreen({ route, navigation }: any) {
   // Soportar initialTab desde parámetros de navegación
   const initialTab = route?.params?.initialTab || 'signatures';
   const [tab, setTab] = useState<Tab>(initialTab as Tab);
@@ -266,6 +266,7 @@ export default function DocumentManagerScreen({ route }: any) {
       {exploringFolder && (
         <FolderExplorer
           folderType={exploringFolder}
+          navigation={navigation}
           onClose={() => {
             setExploringFolder(null);
             if (tab === 'folders') loadFolders(); // Refrescar counts si hubo cambios
