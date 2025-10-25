@@ -126,7 +126,10 @@ export default function MovementDetail() {
   };
 
   const handleAddToFolder = async (folderName) => {
-    console.log('[MovementDetail] Añadiendo a carpeta:', folderName);
+    // FolderPicker retorna 'custom/nombre', pero addToFolder espera solo 'nombre'
+    const cleanFolderName = folderName.replace('custom/', '');
+    
+    console.log('[MovementDetail] Añadiendo a carpeta:', cleanFolderName);
     
     if (!existingMovimiento) {
       Alert.alert('Error', 'Primero debes guardar el movimiento');
@@ -136,7 +139,7 @@ export default function MovementDetail() {
     const success = await addToFolder({
       type: tipo,
       refId: existingMovimiento.id,
-      folderName,
+      folderName: cleanFolderName,
       monto: Number(monto) || 0,
       concepto: nota.trim() || `${tipo === 'pago' ? 'Pago' : 'Cobro'} de $${monto}`,
       fecha: fechaISO,

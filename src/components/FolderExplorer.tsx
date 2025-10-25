@@ -357,7 +357,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
           {item.concepto}
         </Text>
         <View style={s.itemMetaRow}>
-          <Text style={s.itemAmount}>${item.monto.toFixed(2)}</Text>
+          <Text style={s.itemAmount}>${(item.monto || 0).toFixed(2)}</Text>
           <Text style={s.itemMeta}> • </Text>
           <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
             {item.estado}
@@ -385,7 +385,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
           {item.concepto}
         </Text>
         <View style={s.itemMetaRow}>
-          <Text style={[s.itemAmount, { color: '#4CAF50' }]}>${item.monto.toFixed(2)}</Text>
+          <Text style={[s.itemAmount, { color: '#4CAF50' }]}>${(item.monto || 0).toFixed(2)}</Text>
           <Text style={s.itemMeta}> • </Text>
           <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
             {item.estado}

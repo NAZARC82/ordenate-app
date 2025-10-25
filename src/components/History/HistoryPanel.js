@@ -110,7 +110,7 @@ export default function HistoryPanel(props) {
       refId: selectedMovement.id,
       folderName: cleanFolderName,
       monto: selectedMovement.monto || 0,
-      concepto: selectedMovement.nota || selectedMovement.concepto || `${selectedMovement.tipo} de $${selectedMovement.monto}`,
+      concepto: selectedMovement.nota || selectedMovement.concepto || `${selectedMovement.tipo} de $${selectedMovement.monto || 0}`,
       fecha: selectedMovement.fechaISO, // fechaISO es obligatorio en MovimientosContext
       estado: selectedMovement.estado || 'pendiente'
     });
