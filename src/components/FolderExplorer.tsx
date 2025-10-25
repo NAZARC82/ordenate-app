@@ -187,6 +187,12 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   const handleItemLongPress = (item: FolderItem) => {
     console.log('[explorer] Long press en item:', item.type, item.id);
     
+    // Solo permitir long press en carpetas custom (items vinculados)
+    if (!folderType.startsWith('custom/')) {
+      console.warn('[explorer] Long press solo disponible en carpetas custom');
+      return;
+    }
+    
     const folderName = folderType.replace('custom/', '');
     
     Alert.alert(
