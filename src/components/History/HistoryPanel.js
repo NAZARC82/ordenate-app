@@ -5,6 +5,8 @@ import { MovimientosContext } from '../../state/MovimientosContext';
 import ManualDateInput from '../Calendar/ManualDateInput';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../utils/format';
+import { useFolderLinks } from '../../features/folders/useFolderLinks';
+import FolderPicker from '../FolderPicker';
 
 // Guardia defensiva (opcional, útil mientras probás)
 export default function HistoryPanel(props) {
@@ -16,6 +18,12 @@ export default function HistoryPanel(props) {
   }
   
   const { removeMovimiento, getMovimientosBetween } = ctx;
+  
+  // Hook de carpetas
+  const { addToFolder } = useFolderLinks();
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [selectedMovement, setSelectedMovement] = useState(null);
+  
   // filtros globales
   const [desde, setDesde] = useState(null);
   const [hasta, setHasta] = useState(null);
@@ -89,10 +97,47 @@ export default function HistoryPanel(props) {
     ]);
   };
 
+  const handleAddToFolder = async (folderName) => {
+    if (!selectedMovement) return;
+    
+    console.log('[HistoryPanel] Añadiendo movimiento a carpeta:', folderName);
+    
+    const success = await addToFolder({
+      type: selectedMovement.tipo,
+      refId: selectedMovement.id,
+      folderName,
+      monto: selectedMovement.monto || 0,
+      concepto: selectedMovement.nota || selectedMovement.concepto || `${selectedMovement.tipo} de $${selectedMovement.monto}`,
+      fecha: selectedMovement.fechaISO || selectedMovement.fecha,
+      estado: selectedMovement.estado || 'pendiente'
+    });
+
+    if (success) {
+      setShowFolderPicker(false);
+      setSelectedMovement(null);
+    }
+  };
+
   const renderRightActions = (item) => (
-    <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.swipeDelete}>
-      <Text style={styles.swipeDeleteText}>Eliminar</Text>
-    </TouchableOpacity>
+    <View style={styles.swipeActions}>
+      <TouchableOpacity 
+        onPress={() => {
+          setSelectedMovement(item);
+          setShowFolderPicker(true);
+        }} 
+        style={styles.swipeFolder}
+      >
+        <Ionicons name="folder" size={20} color="#fff" />
+        <Text style={styles.swipeFolderText}>Carpeta</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        onPress={() => confirmDelete(item.id)} 
+        style={styles.swipeDelete}
+      >
+        <Ionicons name="trash" size={20} color="#fff" />
+        <Text style={styles.swipeDeleteText}>Eliminar</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   const displayNota = (m) => (m.nota && m.nota.trim()) || (m.concepto && m.concepto.trim()) || '-';
@@ -298,6 +343,18 @@ export default function HistoryPanel(props) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      
+      {/* FolderPicker Modal */}
+      {showFolderPicker && (
+        <FolderPicker
+          visible={showFolderPicker}
+          onClose={() => {
+            setShowFolderPicker(false);
+            setSelectedMovement(null);
+          }}
+          onSelect={handleAddToFolder}
+        />
+      )}
     </View>
   );
 }
@@ -434,18 +491,37 @@ const styles = StyleSheet.create({
   },
   
   // Swipe actions
+  swipeActions: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  swipeFolder: {
+    backgroundColor: '#3E7D75',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+  },
+  swipeFolderText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 11,
+    marginTop: 4,
+  },
   swipeDelete: {
     backgroundColor: '#C62828',
     justifyContent: 'center',
     alignItems: 'center',
-    width: 88,
+    width: 80,
     height: '100%',
     borderTopRightRadius: 12,
     borderBottomRightRadius: 12,
   },
   swipeDeleteText: { 
     color: '#FFF', 
-    fontWeight: '700' 
+    fontWeight: '600',
+    fontSize: 11,
+    marginTop: 4,
   },
   deleteAction: {
     backgroundColor: '#dc3545',

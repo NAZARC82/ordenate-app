@@ -184,6 +184,39 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     }
   };
 
+  const handleItemLongPress = (item: FolderItem) => {
+    console.log('[explorer] Long press en item:', item.type, item.id);
+    
+    const folderName = folderType.replace('custom/', '');
+    
+    Alert.alert(
+      'Opciones',
+      `¿Qué deseas hacer con este elemento?`,
+      [
+        {
+          text: 'Eliminar de carpeta',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { removeItemFromFolder } = await import('../features/folders/folders.data');
+              await removeItemFromFolder(folderName, item.id);
+              showToast('✅ Eliminado de carpeta');
+              await loadFolderItems();
+            } catch (error) {
+              console.error('[explorer] Error eliminando item:', error);
+              showErrorToast('No se pudo eliminar');
+            }
+          }
+        },
+        {
+          text: 'Ver detalle',
+          onPress: () => handleItemPress(item)
+        },
+        { text: 'Cancelar', style: 'cancel' }
+      ]
+    );
+  };
+
   const handleImport = async () => {
     try {
       console.log('[explorer] Iniciando importación de archivos...');
@@ -313,6 +346,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       key={`pago-${item.id}`}
       style={s.itemCard}
       onPress={() => handleItemPress(item)}
+      onLongPress={() => handleItemLongPress(item)}
       testID={`pago-${index}`}
     >
       <View style={[s.itemIcon, { backgroundColor: '#FFF3E0' }]}>
@@ -340,6 +374,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       key={`cobro-${item.id}`}
       style={s.itemCard}
       onPress={() => handleItemPress(item)}
+      onLongPress={() => handleItemLongPress(item)}
       testID={`cobro-${index}`}
     >
       <View style={[s.itemIcon, { backgroundColor: '#E8F5E9' }]}>
@@ -367,6 +402,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       key={`recordatorio-${item.id}`}
       style={s.itemCard}
       onPress={() => handleItemPress(item)}
+      onLongPress={() => handleItemLongPress(item)}
       testID={`recordatorio-${index}`}
     >
       <View style={[s.itemIcon, { backgroundColor: '#F3E5F5' }]}>
