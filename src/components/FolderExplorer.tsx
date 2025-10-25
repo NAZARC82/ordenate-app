@@ -16,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { folderPath } from '../features/documents/folders';
 import { showToast, showErrorToast } from '../utils/toast';
 import { importMultipleIntoFolder } from '../utils/imports';
+import { getFolderContent, FolderItem, FileItem, PagoItem, CobroItem, RecordatorioItem } from '../features/folders/folders.data';
 import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
 
@@ -33,14 +34,17 @@ interface FolderExplorerProps {
 
 export default function FolderExplorer({ folderType, onClose }: FolderExplorerProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
+  const [selectedItem, setSelectedItem] = useState<FolderItem | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
 
   useEffect(() => {
     loadFiles();
+    loadFolderItems();
   }, [folderType]);
 
   const loadFiles = async () => {
@@ -92,6 +96,36 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
     }
   };
 
+  /**
+   * Carga items vinculados (pagos, cobros, recordatorios) desde folders.data
+   */
+  const loadFolderItems = async () => {
+    try {
+      // Solo carpetas custom tienen items vinculados
+      if (!folderType.startsWith('custom/')) {
+        setFolderItems([]);
+        return;
+      }
+
+      const folderName = folderType.replace('custom/', '');
+      console.log('[explorer] Cargando items vinculados de:', folderName);
+
+      const content = await getFolderContent(folderName);
+      console.log('[explorer] Items encontrados:', content.items.length);
+
+      // Ordenar por fecha descendente
+      const sorted = [...content.items].sort((a, b) => {
+        const dateA = new Date(a.type === 'file' ? a.date : (a as any).fecha);
+        const dateB = new Date(b.type === 'file' ? b.date : (b as any).fecha);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setFolderItems(sorted);
+    } catch (error) {
+      console.error('[explorer] Error al cargar items vinculados:', error);
+    }
+  };
+
   const handleFilePress = (file: FileInfo) => {
     console.log('[explorer] Archivo seleccionado:', file.name);
     setSelectedFile(file);
@@ -107,6 +141,28 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
     setShowMoveSheet(false);
     setSelectedFile(null);
     await loadFiles(); // Refrescar lista después de mover
+  };
+
+  const handleItemPress = (item: FolderItem) => {
+    console.log('[explorer] Item vinculado seleccionado:', item.type, item.id);
+    setSelectedItem(item);
+    // TODO: Navegar a pantalla de detalle según tipo
+    // Para ahora, mostrar info simple
+    if (item.type === 'pago' || item.type === 'cobro') {
+      const mov = item as PagoItem | CobroItem;
+      Alert.alert(
+        `${item.type === 'pago' ? 'Pago' : 'Cobro'}`,
+        `${mov.concepto}\n$${mov.monto.toFixed(2)}\nEstado: ${mov.estado}\n\nNavegación al detalle en desarrollo...`,
+        [{ text: 'OK' }]
+      );
+    } else if (item.type === 'recordatorio') {
+      const rem = item as RecordatorioItem;
+      Alert.alert(
+        'Recordatorio',
+        `${rem.titulo}\nPrioridad: ${rem.prioridad}\n\nNavegación al detalle en desarrollo...`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const handleImport = async () => {
@@ -147,6 +203,7 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
       
       // Refrescar lista
       await loadFiles();
+      await loadFolderItems();
       
       // Mostrar resultado
       if (failCount === 0) {
@@ -209,6 +266,149 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
     return 'document';
   };
 
+  /**
+   * Separa los items por tipo para mostrar en secciones
+   */
+  const getSectionedItems = () => {
+    const pagos = folderItems.filter(i => i.type === 'pago') as PagoItem[];
+    const cobros = folderItems.filter(i => i.type === 'cobro') as CobroItem[];
+    const recordatorios = folderItems.filter(i => i.type === 'recordatorio') as RecordatorioItem[];
+    
+    return { pagos, cobros, recordatorios };
+  };
+
+  const renderSectionHeader = (icon: string, title: string, count: number) => {
+    if (count === 0) return null;
+    
+    return (
+      <View style={s.sectionHeader}>
+        <Ionicons name={icon as any} size={18} color="#3E7D75" style={s.sectionIcon} />
+        <Text style={s.sectionTitle}>{title}</Text>
+        <Text style={s.sectionCount}>{count}</Text>
+      </View>
+    );
+  };
+
+  const renderPagoItem = (item: PagoItem, index: number) => (
+    <TouchableOpacity
+      key={`pago-${item.id}`}
+      style={s.itemCard}
+      onPress={() => handleItemPress(item)}
+      testID={`pago-${index}`}
+    >
+      <View style={[s.itemIcon, { backgroundColor: '#FFF3E0' }]}>
+        <Ionicons name="arrow-up-outline" size={24} color="#FF6B35" />
+      </View>
+      <View style={s.itemContent}>
+        <Text style={s.itemTitle} numberOfLines={1}>
+          {item.concepto}
+        </Text>
+        <View style={s.itemMetaRow}>
+          <Text style={s.itemAmount}>${item.monto.toFixed(2)}</Text>
+          <Text style={s.itemMeta}> • </Text>
+          <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
+            {item.estado}
+          </Text>
+        </View>
+        <Text style={s.itemDate}>{formatItemDate(item.fecha)}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+    </TouchableOpacity>
+  );
+
+  const renderCobroItem = (item: CobroItem, index: number) => (
+    <TouchableOpacity
+      key={`cobro-${item.id}`}
+      style={s.itemCard}
+      onPress={() => handleItemPress(item)}
+      testID={`cobro-${index}`}
+    >
+      <View style={[s.itemIcon, { backgroundColor: '#E8F5E9' }]}>
+        <Ionicons name="arrow-down-outline" size={24} color="#4CAF50" />
+      </View>
+      <View style={s.itemContent}>
+        <Text style={s.itemTitle} numberOfLines={1}>
+          {item.concepto}
+        </Text>
+        <View style={s.itemMetaRow}>
+          <Text style={[s.itemAmount, { color: '#4CAF50' }]}>${item.monto.toFixed(2)}</Text>
+          <Text style={s.itemMeta}> • </Text>
+          <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
+            {item.estado}
+          </Text>
+        </View>
+        <Text style={s.itemDate}>{formatItemDate(item.fecha)}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+    </TouchableOpacity>
+  );
+
+  const renderRecordatorioItem = (item: RecordatorioItem, index: number) => (
+    <TouchableOpacity
+      key={`recordatorio-${item.id}`}
+      style={s.itemCard}
+      onPress={() => handleItemPress(item)}
+      testID={`recordatorio-${index}`}
+    >
+      <View style={[s.itemIcon, { backgroundColor: '#F3E5F5' }]}>
+        <Ionicons name="notifications-outline" size={24} color="#9C27B0" />
+      </View>
+      <View style={s.itemContent}>
+        <Text style={s.itemTitle} numberOfLines={1}>
+          {item.titulo}
+        </Text>
+        <View style={s.itemMetaRow}>
+          <Text style={[s.itemBadge, getPrioridadBadgeStyle(item.prioridad)]}>
+            {item.prioridad}
+          </Text>
+          {item.completado && (
+            <>
+              <Text style={s.itemMeta}> • </Text>
+              <Text style={[s.itemBadge, { backgroundColor: '#E8F5E9', color: '#4CAF50' }]}>
+                completado
+              </Text>
+            </>
+          )}
+        </View>
+        <Text style={s.itemDate}>{formatItemDate(item.fecha)}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="#ccc" />
+    </TouchableOpacity>
+  );
+
+  const getEstadoBadgeStyle = (estado: string) => {
+    switch (estado) {
+      case 'pagado':
+        return { backgroundColor: '#E8F5E9', color: '#4CAF50' };
+      case 'urgente':
+        return { backgroundColor: '#FFEBEE', color: '#F44336' };
+      case 'pronto':
+        return { backgroundColor: '#FFF3E0', color: '#FF9800' };
+      default:
+        return { backgroundColor: '#F5F5F5', color: '#757575' };
+    }
+  };
+
+  const getPrioridadBadgeStyle = (prioridad: string) => {
+    switch (prioridad) {
+      case 'alta':
+        return { backgroundColor: '#FFEBEE', color: '#F44336' };
+      case 'media':
+        return { backgroundColor: '#FFF3E0', color: '#FF9800' };
+      default:
+        return { backgroundColor: '#F5F5F5', color: '#757575' };
+    }
+  };
+
+  const formatItemDate = (isoDate: string): string => {
+    const date = new Date(isoDate);
+    return date.toLocaleDateString('es-UY', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
   return (
     <>
       <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -245,36 +445,71 @@ export default function FolderExplorer({ folderType, onClose }: FolderExplorerPr
                 <ActivityIndicator size="large" color="#3E7D75" />
                 <Text style={s.muted}>Cargando archivos...</Text>
               </View>
-            ) : files.length === 0 ? (
+            ) : files.length === 0 && folderItems.length === 0 ? (
               <View style={s.emptyState}>
                 <Ionicons name="folder-open-outline" size={64} color="#ccc" />
                 <Text style={s.muted}>Carpeta vacía</Text>
-                <Text style={s.mutedSmall}>Los archivos exportados aparecerán aquí</Text>
+                <Text style={s.mutedSmall}>
+                  {folderType.startsWith('custom/')
+                    ? 'Los archivos y elementos vinculados aparecerán aquí'
+                    : 'Los archivos exportados aparecerán aquí'}
+                </Text>
               </View>
             ) : (
-              files.map((file, index) => (
-                <TouchableOpacity
-                  key={`${file.uri}-${index}`}
-                  style={s.fileCard}
-                  onPress={() => handleFilePress(file)}
-                  testID={`file-${index}`}
-                >
-                  <View style={s.fileIcon}>
-                    <Ionicons name={getFileIcon(file.name)} size={28} color="#3E7D75" />
-                  </View>
-                  <View style={s.fileContent}>
-                    <Text style={s.fileName} numberOfLines={2}>
-                      {file.name}
-                    </Text>
-                    <View style={s.fileMetaRow}>
-                      <Text style={s.fileMeta}>{formatSize(file.size)}</Text>
-                      <Text style={s.fileMeta}> • </Text>
-                      <Text style={s.fileMeta}>{formatDate(file.modificationTime)}</Text>
-                    </View>
-                  </View>
-                  <Ionicons name="ellipsis-horizontal" size={20} color="#ccc" />
-                </TouchableOpacity>
-              ))
+              <>
+                {/* Sección: Items Vinculados (solo carpetas custom) */}
+                {folderType.startsWith('custom/') && folderItems.length > 0 && (() => {
+                  const { pagos, cobros, recordatorios } = getSectionedItems();
+                  return (
+                    <>
+                      {/* Pagos */}
+                      {renderSectionHeader('arrow-up-circle', 'Pagos', pagos.length)}
+                      {pagos.map((item, idx) => renderPagoItem(item, idx))}
+                      
+                      {/* Cobros */}
+                      {renderSectionHeader('arrow-down-circle', 'Cobros', cobros.length)}
+                      {cobros.map((item, idx) => renderCobroItem(item, idx))}
+                      
+                      {/* Recordatorios */}
+                      {renderSectionHeader('notifications', 'Recordatorios', recordatorios.length)}
+                      {recordatorios.map((item, idx) => renderRecordatorioItem(item, idx))}
+                      
+                      {/* Separador si también hay archivos */}
+                      {files.length > 0 && <View style={s.sectionDivider} />}
+                    </>
+                  );
+                })()}
+
+                {/* Sección: Archivos */}
+                {files.length > 0 && (
+                  <>
+                    {renderSectionHeader('document', 'Archivos', files.length)}
+                    {files.map((file, index) => (
+                      <TouchableOpacity
+                        key={`${file.uri}-${index}`}
+                        style={s.fileCard}
+                        onPress={() => handleFilePress(file)}
+                        testID={`file-${index}`}
+                      >
+                        <View style={s.fileIcon}>
+                          <Ionicons name={getFileIcon(file.name)} size={28} color="#3E7D75" />
+                        </View>
+                        <View style={s.fileContent}>
+                          <Text style={s.fileName} numberOfLines={2}>
+                            {file.name}
+                          </Text>
+                          <View style={s.fileMetaRow}>
+                            <Text style={s.fileMeta}>{formatSize(file.size)}</Text>
+                            <Text style={s.fileMeta}> • </Text>
+                            <Text style={s.fileMeta}>{formatDate(file.modificationTime)}</Text>
+                          </View>
+                        </View>
+                        <Ionicons name="ellipsis-horizontal" size={20} color="#ccc" />
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </ScrollView>
         </View>
@@ -386,7 +621,98 @@ const s = StyleSheet.create({
     color: '#aaa',
     fontSize: 13,
     marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
+  // Sección headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  sectionIcon: {
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4D3527',
+    flex: 1,
+  },
+  sectionCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#999',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#E8E8E8',
+    marginVertical: 16,
+  },
+  // Items vinculados (pagos, cobros, recordatorios)
+  itemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  itemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4D3527',
+    marginBottom: 4,
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  itemAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6B35',
+  },
+  itemMeta: {
+    fontSize: 12,
+    color: '#ccc',
+  },
+  itemBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  itemDate: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  // Archivos
   fileCard: {
     flexDirection: 'row',
     alignItems: 'center',

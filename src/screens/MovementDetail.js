@@ -7,6 +7,8 @@ import { useMovimientos } from '../state/MovimientosContext';
 import { getEstadoColor } from '../utils/estadoColor';
 import { ReminderService } from '../modules/reminders';
 import { formatDate } from '../utils/format';
+import { useFolderLinks } from '../features/folders/useFolderLinks';
+import FolderPicker from '../components/FolderPicker';
 
 export default function MovementDetail() {
   const route = useRoute();
@@ -21,6 +23,10 @@ export default function MovementDetail() {
   const [estado, setEstado] = useState('pendiente');
   const [fechaISO, setFechaISO] = useState(new Date().toISOString());
   const [linkedReminders, setLinkedReminders] = useState([]);
+  
+  // Estados para carpetas
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const { addToFolder, findLinkedFolders, linkedFolders } = useFolderLinks();
 
   // Buscar movimiento existente para modo edit
   const existingMovimiento = useMemo(() => {
@@ -53,6 +59,8 @@ export default function MovementDetail() {
   useEffect(() => {
     if (existingMovimiento?.id) {
       loadLinkedReminders(existingMovimiento.id);
+      // También cargar carpetas vinculadas
+      findLinkedFolders(tipo, existingMovimiento.id);
     }
   }, [existingMovimiento?.id]);
 
@@ -114,6 +122,31 @@ export default function MovementDetail() {
           fechaISO
         }
       });
+    }
+  };
+
+  const handleAddToFolder = async (folderName) => {
+    console.log('[MovementDetail] Añadiendo a carpeta:', folderName);
+    
+    if (!existingMovimiento) {
+      Alert.alert('Error', 'Primero debes guardar el movimiento');
+      return;
+    }
+
+    const success = await addToFolder({
+      type: tipo,
+      refId: existingMovimiento.id,
+      folderName,
+      monto: Number(monto) || 0,
+      concepto: nota.trim() || `${tipo === 'pago' ? 'Pago' : 'Cobro'} de $${monto}`,
+      fecha: fechaISO,
+      estado
+    });
+
+    if (success) {
+      setShowFolderPicker(false);
+      // Recargar carpetas vinculadas
+      await findLinkedFolders(tipo, existingMovimiento.id);
     }
   };
 
@@ -291,13 +324,28 @@ export default function MovementDetail() {
         </TouchableOpacity>
         
         {mode === 'view' && existingMovimiento && (
-          <TouchableOpacity 
-            style={[styles.button, styles.reminderButton]} 
-            onPress={handleCreateReminder}
-          >
-            <Ionicons name="notifications" size={16} color="white" style={{ marginRight: 8 }} />
-            <Text style={styles.buttonText}>Recordatorio</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity 
+              style={[styles.button, styles.folderButton]} 
+              onPress={() => setShowFolderPicker(true)}
+            >
+              <Ionicons name="folder" size={16} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>Carpeta</Text>
+              {linkedFolders.length > 0 && (
+                <View style={styles.folderBadge}>
+                  <Text style={styles.folderBadgeText}>{linkedFolders.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.reminderButton]} 
+              onPress={handleCreateReminder}
+            >
+              <Ionicons name="notifications" size={16} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>Recordatorio</Text>
+            </TouchableOpacity>
+          </>
         )}
         
         {(mode === 'create' || mode === 'edit') && (
@@ -309,6 +357,15 @@ export default function MovementDetail() {
         )}
       </View>
     </View>
+    
+    {/* FolderPicker Modal */}
+    {showFolderPicker && (
+      <FolderPicker
+        visible={showFolderPicker}
+        onClose={() => setShowFolderPicker(false)}
+        onSelect={handleAddToFolder}
+      />
+    )}
     </>
   );
 }
@@ -416,6 +473,27 @@ const styles = StyleSheet.create({
   },
   reminderButton: {
     backgroundColor: '#f39c12',
+  },
+  folderButton: {
+    backgroundColor: '#3E7D75',
+    position: 'relative',
+  },
+  folderBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  folderBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   buttonText: {
     color: '#FFFFFF',

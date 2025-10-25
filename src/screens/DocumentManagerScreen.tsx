@@ -7,6 +7,7 @@ import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
 import { purgeOlderThan } from '../features/documents/retention';
 import { showToast, showErrorToast } from '../utils/toast';
 import { listFolders, createFolder, renameFolder, deleteFolder, FolderInfo } from '../features/documents/folders';
+import { clearFolderContent, renameFolderContent } from '../features/folders/folders.data';
 // Componentes
 // @ts-ignore - TypeScript cache issue, file exists at src/components/FolderExplorer.tsx
 import FolderExplorer from '../components/FolderExplorer';
@@ -192,6 +193,15 @@ export default function DocumentManagerScreen({ route }: any) {
     try {
       console.log('[folders] rename:', oldName, '->', renameValue);
       await renameFolder(oldName, renameValue.trim());
+      
+      // Migrar vínculos al nuevo nombre
+      try {
+        await renameFolderContent(oldName, renameValue.trim());
+        console.log('[folders] Vínculos migrados:', oldName, '->', renameValue.trim());
+      } catch (error) {
+        console.error('[folders] Error migrando vínculos:', error);
+      }
+      
       showToast('✅ Carpeta renombrada');
       setRenamingFolder(null);
       setRenameValue('');
@@ -224,6 +234,15 @@ export default function DocumentManagerScreen({ route }: any) {
             try {
               console.log('[folders] delete:', name);
               await deleteFolder(name);
+              
+              // Cleanup: eliminar vínculos de pagos/cobros/recordatorios
+              try {
+                await clearFolderContent(name);
+                console.log('[folders] Vínculos eliminados de carpeta:', name);
+              } catch (error) {
+                console.error('[folders] Error limpiando vínculos:', error);
+              }
+              
               showToast('✅ Carpeta eliminada');
               await loadFolders();
             } catch (error: any) {

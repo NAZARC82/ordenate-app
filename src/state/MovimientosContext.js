@@ -1,6 +1,7 @@
 // src/state/MovimientosContext.js
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { isValidISODate, getTodayISO } from "../utils/date";
+import { removeItemByRefId } from "../features/folders/folders.data";
 
 const MovimientosContext = createContext();
 
@@ -78,7 +79,28 @@ export function MovimientosProvider({ children }) {
   };
 
   const clearAll = () => setMovimientos([]);
-  const removeById = (id) => setMovimientos(prev => prev.filter(i => i.id !== id));
+  
+  const removeById = async (id) => {
+    // Encontrar el movimiento antes de eliminarlo para saber su tipo
+    const movimiento = movimientos.find(m => m.id === id);
+    if (!movimiento) {
+      console.warn('[MovimientosContext] Movimiento no encontrado:', id);
+      return;
+    }
+
+    // Eliminar de movimientos
+    setMovimientos(prev => prev.filter(i => i.id !== id));
+    
+    // Cleanup: eliminar vínculos en carpetas
+    try {
+      const removedCount = await removeItemByRefId(movimiento.tipo, id);
+      if (removedCount > 0) {
+        console.log(`[MovimientosContext] Eliminadas ${removedCount} referencias de carpetas`);
+      }
+    } catch (error) {
+      console.error('[MovimientosContext] Error al limpiar vínculos de carpetas:', error);
+    }
+  };
 
   const getMovimientosBetween = (desde, hasta) => {
     const d0 = desde ? new Date(desde).getTime() : -Infinity;
