@@ -42,6 +42,10 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   const [selectedItem, setSelectedItem] = useState<FolderItem | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
+  
+  // FASE6: Estados para selección múltiple y exportación
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadFiles();
@@ -347,17 +351,30 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     );
   };
 
-  const renderPagoItem = (item: PagoItem, index: number) => (
-    <TouchableOpacity
-      key={`pago-${item.id}`}
-      style={s.itemCard}
-      onPress={() => handleItemPress(item)}
-      onLongPress={() => handleItemLongPress(item)}
-      testID={`pago-${index}`}
-    >
-      <View style={[s.itemIcon, { backgroundColor: '#FFF3E0' }]}>
-        <Ionicons name="arrow-up-outline" size={24} color="#FF6B35" />
-      </View>
+  const renderPagoItem = (item: PagoItem, index: number) => {
+    const isSelected = selectedItems.has(item.id);
+    
+    return (
+      <TouchableOpacity
+        key={`pago-${item.id}`}
+        style={[s.itemCard, isSelected && s.itemCardSelected]}
+        onPress={() => selectionMode ? toggleItemSelection(item.id) : handleItemPress(item)}
+        onLongPress={() => !selectionMode && handleItemLongPress(item)}
+        testID={`pago-${index}`}
+      >
+        {/* FASE6: Checkbox en modo selección */}
+        {selectionMode && (
+          <View style={s.checkbox}>
+            <Ionicons 
+              name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+              size={24} 
+              color={isSelected ? "#3E7D75" : "#ccc"} 
+            />
+          </View>
+        )}
+        <View style={[s.itemIcon, { backgroundColor: '#FFF3E0' }]}>
+          <Ionicons name="arrow-up-outline" size={24} color="#FF6B35" />
+        </View>
       <View style={s.itemContent}>
         <Text style={s.itemTitle} numberOfLines={1}>
           {item.concepto}
@@ -373,35 +390,50 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       </View>
       <Ionicons name="chevron-forward" size={20} color="#ccc" />
     </TouchableOpacity>
-  );
+    );
+  };
 
-  const renderCobroItem = (item: CobroItem, index: number) => (
-    <TouchableOpacity
-      key={`cobro-${item.id}`}
-      style={s.itemCard}
-      onPress={() => handleItemPress(item)}
-      onLongPress={() => handleItemLongPress(item)}
-      testID={`cobro-${index}`}
-    >
-      <View style={[s.itemIcon, { backgroundColor: '#E8F5E9' }]}>
-        <Ionicons name="arrow-down-outline" size={24} color="#4CAF50" />
-      </View>
-      <View style={s.itemContent}>
-        <Text style={s.itemTitle} numberOfLines={1}>
-          {item.concepto}
-        </Text>
-        <View style={s.itemMetaRow}>
-          <Text style={[s.itemAmount, { color: '#4CAF50' }]}>${(item.monto || 0).toFixed(2)}</Text>
-          <Text style={s.itemMeta}> • </Text>
-          <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
-            {item.estado}
-          </Text>
+  const renderCobroItem = (item: CobroItem, index: number) => {
+    const isSelected = selectedItems.has(item.id);
+    
+    return (
+      <TouchableOpacity
+        key={`cobro-${item.id}`}
+        style={[s.itemCard, isSelected && s.itemCardSelected]}
+        onPress={() => selectionMode ? toggleItemSelection(item.id) : handleItemPress(item)}
+        onLongPress={() => !selectionMode && handleItemLongPress(item)}
+        testID={`cobro-${index}`}
+      >
+        {/* FASE6: Checkbox en modo selección */}
+        {selectionMode && (
+          <View style={s.checkbox}>
+            <Ionicons 
+              name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
+              size={24} 
+              color={isSelected ? "#3E7D75" : "#ccc"} 
+            />
+          </View>
+        )}
+        <View style={[s.itemIcon, { backgroundColor: '#E8F5E9' }]}>
+          <Ionicons name="arrow-down-outline" size={24} color="#4CAF50" />
         </View>
-        <Text style={s.itemDate}>{formatItemDate(item.fecha)}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#ccc" />
-    </TouchableOpacity>
-  );
+        <View style={s.itemContent}>
+          <Text style={s.itemTitle} numberOfLines={1}>
+            {item.concepto}
+          </Text>
+          <View style={s.itemMetaRow}>
+            <Text style={[s.itemAmount, { color: '#4CAF50' }]}>${(item.monto || 0).toFixed(2)}</Text>
+            <Text style={s.itemMeta}> • </Text>
+            <Text style={[s.itemBadge, getEstadoBadgeStyle(item.estado)]}>
+              {item.estado}
+            </Text>
+          </View>
+          <Text style={s.itemDate}>{formatItemDate(item.fecha)}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#ccc" />
+      </TouchableOpacity>
+    );
+  };
 
   const renderRecordatorioItem = (item: RecordatorioItem, index: number) => (
     <TouchableOpacity
@@ -470,6 +502,68 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     });
   };
 
+  // FASE6: Funciones de selección múltiple
+  const toggleSelectionMode = () => {
+    console.log('[FASE6] Toggle selection mode');
+    setSelectionMode(!selectionMode);
+    setSelectedItems(new Set());
+  };
+
+  const toggleItemSelection = (itemId: string) => {
+    const newSelection = new Set(selectedItems);
+    if (newSelection.has(itemId)) {
+      newSelection.delete(itemId);
+    } else {
+      newSelection.add(itemId);
+    }
+    setSelectedItems(newSelection);
+  };
+
+  // FASE6: Exportar items seleccionados (MVP - solo PDF/CSV de pagos/cobros)
+  const handleExportSelected = () => {
+    console.log('[FASE6] Export selected items:', selectedItems.size);
+    
+    if (selectedItems.size === 0) {
+      Alert.alert('Sin selección', 'Selecciona al menos un elemento para exportar');
+      return;
+    }
+    
+    // Filtrar items seleccionados (solo pagos y cobros)
+    const itemsToExport = folderItems.filter(item => 
+      selectedItems.has(item.id) && (item.type === 'pago' || item.type === 'cobro')
+    );
+    
+    if (itemsToExport.length === 0) {
+      Alert.alert(
+        'Sin elementos exportables',
+        'Solo se pueden exportar pagos y cobros.\nLos recordatorios no son exportables desde aquí.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // FASE6: Por ahora mostrar placeholder
+    Alert.alert(
+      'Exportar seleccionados',
+      `${itemsToExport.length} elemento${itemsToExport.length > 1 ? 's' : ''} seleccionado${itemsToExport.length > 1 ? 's' : ''}.\n\nLa exportación desde carpeta estará disponible pronto.\n\nTip: Puedes exportar desde el Historial seleccionando estos movimientos.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Ir al Historial',
+          onPress: () => {
+            onClose();
+            if (navigation) {
+              const parent = navigation.getParent();
+              if (parent) {
+                parent.navigate('HistoryTab');
+              }
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <>
       <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -482,21 +576,72 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
             <View style={s.headerTitle}>
               <Text style={s.title}>{getFolderTitle()}</Text>
               <Text style={s.subtitle}>
-                {files.length} archivo{files.length !== 1 ? 's' : ''}
+                {selectionMode 
+                  ? `${selectedItems.size} seleccionado${selectedItems.size !== 1 ? 's' : ''}`
+                  : `${files.length} archivo${files.length !== 1 ? 's' : ''}`
+                }
               </Text>
             </View>
-            <TouchableOpacity 
-              style={s.importBtn} 
-              onPress={handleImport}
-              disabled={importing || loading}
-              testID="btn-import"
-            >
-              {importing ? (
-                <ActivityIndicator size="small" color="#3E7D75" />
-              ) : (
-                <Ionicons name="cloud-upload-outline" size={24} color="#3E7D75" />
-              )}
-            </TouchableOpacity>
+            
+            {/* FASE6: Botones de acción según modo */}
+            {selectionMode ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={handleExportSelected}
+                  disabled={selectedItems.size === 0}
+                  testID="btn-export-selected"
+                >
+                  <Ionicons 
+                    name="download-outline" 
+                    size={24} 
+                    color={selectedItems.size > 0 ? "#3E7D75" : "#ccc"} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={toggleSelectionMode}
+                  testID="btn-cancel-selection"
+                >
+                  <Ionicons name="close" size={24} color="#999" />
+                </TouchableOpacity>
+              </View>
+            ) : folderType.startsWith('custom/') && folderItems.length > 0 ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={toggleSelectionMode}
+                  testID="btn-select-mode"
+                >
+                  <Ionicons name="checkmark-circle-outline" size={24} color="#3E7D75" />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={handleImport}
+                  disabled={importing || loading}
+                  testID="btn-import"
+                >
+                  {importing ? (
+                    <ActivityIndicator size="small" color="#3E7D75" />
+                  ) : (
+                    <Ionicons name="cloud-upload-outline" size={24} color="#3E7D75" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={s.importBtn} 
+                onPress={handleImport}
+                disabled={importing || loading}
+                testID="btn-import"
+              >
+                {importing ? (
+                  <ActivityIndicator size="small" color="#3E7D75" />
+                ) : (
+                  <Ionicons name="cloud-upload-outline" size={24} color="#3E7D75" />
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Body */}
@@ -811,5 +956,14 @@ const s = StyleSheet.create({
   fileMeta: {
     fontSize: 12,
     color: '#999',
+  },
+  // FASE6: Estilos para selección múltiple
+  checkbox: {
+    marginRight: 12,
+  },
+  itemCardSelected: {
+    backgroundColor: '#F0F7F6',
+    borderWidth: 2,
+    borderColor: '#3E7D75',
   },
 });

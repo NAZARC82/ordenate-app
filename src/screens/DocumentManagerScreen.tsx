@@ -212,16 +212,26 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
     }
   };
 
+  // FASE6: Eliminación forzada de carpetas con contenido
   const handleDeleteFolder = async (name: string, filesCount: number) => {
+    // Si tiene archivos, ofrecer eliminación forzada
     if (filesCount > 0) {
       Alert.alert(
-        'No se puede eliminar',
-        `La carpeta "${name}" contiene ${filesCount} archivo${filesCount > 1 ? 's' : ''}. Mueve o elimina los archivos primero.`,
-        [{ text: 'OK' }]
+        'Carpeta con contenido',
+        `La carpeta "${name}" contiene ${filesCount} archivo${filesCount > 1 ? 's' : ''}.\n\n¿Qué deseas hacer?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar con todo',
+            style: 'destructive',
+            onPress: () => handleForceDeleteFolder(name),
+          },
+        ]
       );
       return;
     }
 
+    // Carpeta vacía: eliminación normal
     Alert.alert(
       'Eliminar carpeta',
       `¿Estás seguro de eliminar "${name}"?`,
@@ -232,26 +242,125 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('[folders] delete:', name);
+              console.log('[FASE6] delete empty folder:', name);
               await deleteFolder(name);
               
               // Cleanup: eliminar vínculos de pagos/cobros/recordatorios
               try {
                 await clearFolderContent(name);
-                console.log('[folders] Vínculos eliminados de carpeta:', name);
+                console.log('[FASE6] Vínculos eliminados de carpeta:', name);
               } catch (error) {
-                console.error('[folders] Error limpiando vínculos:', error);
+                console.error('[FASE6] Error limpiando vínculos:', error);
               }
               
               showToast('✅ Carpeta eliminada');
               await loadFolders();
             } catch (error: any) {
-              console.error('[folders] Error al eliminar:', error);
+              console.error('[FASE6] Error al eliminar:', error);
               showErrorToast(error.message || 'No se pudo eliminar');
             }
           },
         },
       ]
+    );
+  };
+
+  // FASE6: Eliminación forzada - borra archivos físicos + vínculos + carpeta
+  const handleForceDeleteFolder = async (name: string) => {
+    try {
+      console.log('[FASE6] force delete folder:', name);
+      
+      // Importar FileSystem para borrar archivos físicos
+      const FileSystem = await import('expo-file-system/legacy');
+      const { folderPath } = await import('../features/documents/folders');
+      
+      const path = folderPath(name, 'custom');
+      console.log('[FASE6] Borrando contenido en:', path);
+      
+      // Intentar borrar todos los archivos (con reintentos cortos)
+      try {
+        const items = await FileSystem.readDirectoryAsync(path);
+        console.log('[FASE6] Archivos encontrados:', items.length);
+        
+        for (const fileName of items) {
+          try {
+            const filePath = `${path}${fileName}`;
+            await FileSystem.deleteAsync(filePath, { idempotent: true });
+            console.log('[FASE6] ✓ Archivo borrado:', fileName);
+          } catch (fileError: any) {
+            // Ignorar ENOENT (archivo ya no existe)
+            if (!fileError.message?.includes('ENOENT')) {
+              console.warn('[FASE6] No se pudo borrar archivo:', fileName, fileError);
+            }
+          }
+        }
+      } catch (readError: any) {
+        console.warn('[FASE6] Error leyendo directorio:', readError);
+      }
+      
+      // Limpiar vínculos internos (pagos/cobros/recordatorios)
+      try {
+        await clearFolderContent(name);
+        console.log('[FASE6] ✓ Vínculos eliminados');
+      } catch (error) {
+        console.error('[FASE6] Error limpiando vínculos:', error);
+      }
+      
+      // Eliminar carpeta física
+      await deleteFolder(name);
+      console.log('[FASE6] ✓ Carpeta eliminada del sistema');
+      
+      showToast('✅ Carpeta eliminada con todo su contenido');
+      await loadFolders();
+      
+    } catch (error: any) {
+      console.error('[FASE6] Error en eliminación forzada:', error);
+      showErrorToast('No se pudo eliminar la carpeta. Intenta de nuevo.');
+    }
+  };
+
+  // FASE6: Menú contextual de carpeta con más opciones
+  const handleFolderContextMenu = (name: string, filesCount: number) => {
+    console.log('[FASE6] Context menu for folder:', name);
+    
+    const options = [
+      {
+        text: 'Abrir',
+        onPress: () => handleExploreFolder(`custom/${name}`),
+      },
+      {
+        text: 'Renombrar',
+        onPress: () => {
+          setRenamingFolder(name);
+          setRenameValue(name);
+        },
+      },
+      {
+        text: filesCount > 0 ? 'Eliminar con todo' : 'Eliminar',
+        style: 'destructive' as const,
+        onPress: () => handleDeleteFolder(name, filesCount),
+      },
+      {
+        text: 'Exportar carpeta',
+        onPress: () => {
+          // FASE6: MVP - Placeholder para exportar carpeta completa
+          Alert.alert(
+            'Próximamente',
+            'La exportación completa de carpetas (ZIP/CSV conjunto) estará disponible pronto.',
+            [{ text: 'OK' }]
+          );
+        },
+      },
+      {
+        text: 'Cancelar',
+        style: 'cancel' as const,
+      },
+    ];
+    
+    Alert.alert(
+      name,
+      `${filesCount} archivo${filesCount !== 1 ? 's' : ''}`,
+      options
     );
   };
 
@@ -637,7 +746,7 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
                               </View>
                             </TouchableOpacity>
 
-                            {/* Acciones carpeta custom */}
+                            {/* FASE6: Acciones carpeta custom con menú contextual */}
                             <View style={s.folderActions}>
                               <TouchableOpacity
                                 style={s.folderActionBtn}
@@ -655,6 +764,14 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
                                 testID={`btn-delete-${folder.name}`}
                               >
                                 <Ionicons name="trash-outline" size={18} color="#E74C3C" />
+                              </TouchableOpacity>
+                              {/* FASE6: Menú contextual "..." */}
+                              <TouchableOpacity
+                                style={s.folderActionBtn}
+                                onPress={() => handleFolderContextMenu(folder.name, folder.filesCount)}
+                                testID={`btn-menu-${folder.name}`}
+                              >
+                                <Ionicons name="ellipsis-horizontal" size={18} color="#999" />
                               </TouchableOpacity>
                             </View>
                           </>
