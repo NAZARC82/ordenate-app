@@ -16,9 +16,11 @@ import * as DocumentPicker from 'expo-document-picker';
 import { folderPath } from '../features/documents/folders';
 import { showToast, showErrorToast } from '../utils/toast';
 import { importMultipleIntoFolder } from '../utils/imports';
-import { getFolderContent, FolderItem, FileItem, PagoItem, CobroItem, RecordatorioItem } from '../features/folders/folders.data';
+import { getFolderContent, FolderItem, FileItem, PagoItem, CobroItem, RecordatorioItem, addItemToFolder, findFoldersForItem } from '../features/folders/folders.data';
+import { showFolderToast } from '../utils/toastUtils'; // FASE6.1
 import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
+import InternalItemPicker, { InternalItem } from './InternalItemPicker'; // FASE6.1-b
 
 interface FileInfo {
   name: string;
@@ -46,6 +48,9 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   // FASE6: Estados para selección múltiple y exportación
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  
+  // FASE6.1-b: Estado para InternalItemPicker
+  const [showInternalPicker, setShowInternalPicker] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -149,7 +154,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   };
 
   const handleItemPress = (item: FolderItem) => {
-    console.log('[explorer] Item vinculado seleccionado:', item.type, item.id);
+    console.log('[FASE6.1] Navigation to internal item from folder:', item.type, item.id);
     
     if (!navigation) {
       Alert.alert('Info', 'Navegación no disponible en este contexto');
@@ -159,7 +164,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     // Navegar según tipo
     if (item.type === 'pago' || item.type === 'cobro') {
       const mov = item as PagoItem | CobroItem;
-      console.log('[explorer] Navegando a MovementDetail, refId:', mov.refId);
+      console.log('[FASE6.1] Navigation to MovementDetail from folder, refId:', mov.refId);
       
       // Cerrar modal y navegar
       onClose();
@@ -173,7 +178,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       }
     } else if (item.type === 'recordatorio') {
       const rem = item as RecordatorioItem;
-      console.log('[explorer] Navegando a ReminderForm, refId:', rem.refId);
+      console.log('[FASE6.1] Navigation to ReminderForm from folder, refId:', rem.refId);
       
       // Cerrar modal y navegar
       onClose();
@@ -564,6 +569,71 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     );
   };
 
+  // FASE6.1-b: Handlers para InternalItemPicker
+  const handleOpenInternalPicker = () => {
+    console.log('[FASE6.1-b] openLinkExisting');
+    setShowInternalPicker(true);
+  };
+
+  const handleConfirmInternalPicker = async (selected: InternalItem[]) => {
+    console.log('[FASE6.1-b] pickerConfirm', { count: selected.length });
+    
+    if (!folderType.startsWith('custom/')) {
+      console.warn('[FASE6.1-b] Solo carpetas custom soportan vínculos internos');
+      return;
+    }
+
+    const currentFolderName = folderType.replace('custom/', '');
+    let added = 0;
+    let skipped = 0;
+
+    try {
+      for (const item of selected) {
+        // Verificar si ya está vinculado (evitar duplicados)
+        const existingFolders = await findFoldersForItem(item.type, item.refId);
+        if (existingFolders.includes(currentFolderName)) {
+          console.log('[FASE6.1-b] Item ya vinculado, skip:', item.refId);
+          skipped++;
+          continue;
+        }
+
+        // Añadir vínculo
+        await addItemToFolder(currentFolderName, {
+          type: item.type,
+          refId: item.refId,
+          monto: item.monto ?? 0,
+          concepto: item.titulo,
+          fecha: item.fecha,
+          estado: item.estado ?? 'pendiente',
+        } as any);
+
+        added++;
+      }
+
+      console.log('[FASE6.1-b] pickerConfirm complete', { added, skipped });
+
+      // Toast feedback
+      if (added > 0) {
+        showFolderToast('add', currentFolderName);
+      }
+
+      if (skipped > 0) {
+        Alert.alert(
+          'Algunos ya estaban vinculados',
+          `${added} añadido${added !== 1 ? 's' : ''}, ${skipped} omitido${skipped !== 1 ? 's' : ''} (ya estaba${skipped === 1 ? '' : 'n'} en la carpeta)`,
+          [{ text: 'OK' }]
+        );
+      }
+
+      // Cerrar picker y refrescar
+      setShowInternalPicker(false);
+      await loadFolderItems();
+    } catch (error) {
+      console.error('[FASE6.1-b] Error al vincular items:', error);
+      Alert.alert('Error', 'No se pudieron vincular algunos elementos');
+    }
+  };
+
   return (
     <>
       <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -607,7 +677,15 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
                 </TouchableOpacity>
               </View>
             ) : folderType.startsWith('custom/') && folderItems.length > 0 ? (
+              // FASE6.1-b: Header con contenido - botón "➕ Agregar"
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={handleOpenInternalPicker}
+                  testID="btn-add-internal"
+                >
+                  <Ionicons name="add-circle-outline" size={24} color="#3E7D75" />
+                </TouchableOpacity>
                 <TouchableOpacity 
                   style={s.importBtn} 
                   onPress={toggleSelectionMode}
@@ -652,15 +730,44 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
                 <Text style={s.muted}>Cargando archivos...</Text>
               </View>
             ) : files.length === 0 && folderItems.length === 0 ? (
-              <View style={s.emptyState}>
-                <Ionicons name="folder-open-outline" size={64} color="#ccc" />
-                <Text style={s.muted}>Carpeta vacía</Text>
-                <Text style={s.mutedSmall}>
-                  {folderType.startsWith('custom/')
-                    ? 'Los archivos y elementos vinculados aparecerán aquí'
-                    : 'Los archivos exportados aparecerán aquí'}
-                </Text>
-              </View>
+              // FASE6.1-b: CTA doble cuando carpeta vacía (solo custom)
+              folderType.startsWith('custom/') ? (
+                <View style={s.emptyState}>
+                  <Ionicons name="folder-open-outline" size={64} color="#ccc" />
+                  <Text style={s.muted}>Carpeta vacía</Text>
+                  <Text style={s.mutedSmall}>
+                    Puedes vincular elementos existentes o importar archivos
+                  </Text>
+                  
+                  <View style={s.ctaContainer}>
+                    <TouchableOpacity 
+                      style={s.ctaBtn}
+                      onPress={handleOpenInternalPicker}
+                      testID="btn-cta-link-existing"
+                    >
+                      <Ionicons name="link-outline" size={24} color="#3E7D75" />
+                      <Text style={s.ctaBtnText}>Vincular elemento existente</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={[s.ctaBtn, s.ctaBtnSecondary]}
+                      onPress={handleImport}
+                      testID="btn-cta-import"
+                    >
+                      <Ionicons name="cloud-upload-outline" size={24} color="#6A5ACD" />
+                      <Text style={[s.ctaBtnText, s.ctaBtnTextSecondary]}>Importar archivo</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={s.emptyState}>
+                  <Ionicons name="folder-open-outline" size={64} color="#ccc" />
+                  <Text style={s.muted}>Carpeta vacía</Text>
+                  <Text style={s.mutedSmall}>
+                    Los archivos exportados aparecerán aquí
+                  </Text>
+                </View>
+              )
             ) : (
               <>
                 {/* Sección: Items Vinculados (solo carpetas custom) */}
@@ -758,6 +865,14 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
           onMoveComplete={handleMoveComplete}
         />
       )}
+
+      {/* FASE6.1-b: InternalItemPicker para vincular elementos internos */}
+      <InternalItemPicker
+        visible={showInternalPicker}
+        onClose={() => setShowInternalPicker(false)}
+        onConfirm={handleConfirmInternalPicker}
+        currentFolder={folderType.startsWith('custom/') ? folderType.replace('custom/', '') : undefined}
+      />
     </>
   );
 }
@@ -965,5 +1080,38 @@ const s = StyleSheet.create({
     backgroundColor: '#F0F7F6',
     borderWidth: 2,
     borderColor: '#3E7D75',
+  },
+  // FASE6.1-b: Estilos para CTA de carpeta vacía
+  ctaContainer: {
+    width: '100%',
+    paddingHorizontal: 32,
+    marginTop: 24,
+    gap: 12,
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3E7D75',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  ctaBtnSecondary: {
+    backgroundColor: '#6A5ACD',
+  },
+  ctaBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  ctaBtnTextSecondary: {
+    color: '#fff',
   },
 });

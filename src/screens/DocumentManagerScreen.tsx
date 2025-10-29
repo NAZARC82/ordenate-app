@@ -6,6 +6,7 @@ import { listSignatures, saveSignature, deleteSignature, Signature } from '../fe
 import { usePdfPrefs } from '../features/pdf/usePdfPrefs';
 import { purgeOlderThan } from '../features/documents/retention';
 import { showToast, showErrorToast } from '../utils/toast';
+import { showFolderToast } from '../utils/toastUtils'; // FASE6.1
 import { listFolders, createFolder, renameFolder, deleteFolder, FolderInfo } from '../features/documents/folders';
 import { clearFolderContent, renameFolderContent } from '../features/folders/folders.data';
 // Componentes
@@ -172,9 +173,9 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
     }
 
     try {
-      console.log('[folders] create:', newFolderName);
+      console.log('[FASE6.1] folders create:', newFolderName);
       await createFolder(newFolderName.trim());
-      showToast('✅ Carpeta creada');
+      showFolderToast('create', newFolderName.trim());
       setNewFolderName('');
       setShowCreateFolder(false);
       await loadFolders();
@@ -197,12 +198,12 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
       // Migrar vínculos al nuevo nombre
       try {
         await renameFolderContent(oldName, renameValue.trim());
-        console.log('[folders] Vínculos migrados:', oldName, '->', renameValue.trim());
+        console.log('[FASE6.1] Vínculos migrados:', oldName, '->', renameValue.trim());
       } catch (error) {
         console.error('[folders] Error migrando vínculos:', error);
       }
       
-      showToast('✅ Carpeta renombrada');
+      showFolderToast('rename', renameValue.trim());
       setRenamingFolder(null);
       setRenameValue('');
       await loadFolders();
@@ -248,12 +249,12 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
               // Cleanup: eliminar vínculos de pagos/cobros/recordatorios
               try {
                 await clearFolderContent(name);
-                console.log('[FASE6] Vínculos eliminados de carpeta:', name);
+                console.log('[FASE6.1] Vínculos eliminados de carpeta:', name);
               } catch (error) {
-                console.error('[FASE6] Error limpiando vínculos:', error);
+                console.error('[FASE6.1] Error limpiando vínculos:', error);
               }
               
-              showToast('✅ Carpeta eliminada');
+              showFolderToast('remove', name);
               await loadFolders();
             } catch (error: any) {
               console.error('[FASE6] Error al eliminar:', error);
@@ -309,7 +310,7 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
       // FASE6: Eliminar carpeta física directamente (no usar deleteFolder que valida vacía)
       try {
         await FileSystem.deleteAsync(path, { idempotent: true });
-        console.log('[FASE6] ✓ Carpeta eliminada del sistema');
+        console.log('[FASE6.1] ✓ Carpeta eliminada del sistema');
       } catch (delError: any) {
         console.warn('[FASE6] Error eliminando carpeta física:', delError);
         // Intentar con deleteFolder normal como fallback
@@ -320,7 +321,7 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
         }
       }
       
-      showToast('✅ Carpeta eliminada con todo su contenido');
+      showFolderToast('forceDelete', name);
       await loadFolders();
       
     } catch (error: any) {
