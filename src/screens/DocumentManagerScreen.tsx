@@ -306,9 +306,19 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
         console.error('[FASE6] Error limpiando vínculos:', error);
       }
       
-      // Eliminar carpeta física
-      await deleteFolder(name);
-      console.log('[FASE6] ✓ Carpeta eliminada del sistema');
+      // FASE6: Eliminar carpeta física directamente (no usar deleteFolder que valida vacía)
+      try {
+        await FileSystem.deleteAsync(path, { idempotent: true });
+        console.log('[FASE6] ✓ Carpeta eliminada del sistema');
+      } catch (delError: any) {
+        console.warn('[FASE6] Error eliminando carpeta física:', delError);
+        // Intentar con deleteFolder normal como fallback
+        try {
+          await deleteFolder(name);
+        } catch (fallbackError) {
+          console.error('[FASE6] Fallback también falló:', fallbackError);
+        }
+      }
       
       showToast('✅ Carpeta eliminada con todo su contenido');
       await loadFolders();
