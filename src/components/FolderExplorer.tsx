@@ -1,5 +1,5 @@
 // src/components/FolderExplorer.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { showToast, showErrorToast } from '../utils/toast';
 import { importMultipleIntoFolder } from '../utils/imports';
 import { getFolderContent, FolderItem, FileItem, PagoItem, CobroItem, RecordatorioItem, addItemToFolder, findFoldersForItem } from '../features/folders/folders.data';
 import { showFolderToast } from '../utils/toastUtils'; // FASE6.1
+import { MovimientosContext } from '../state/MovimientosContext'; // FASE6.2
 import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
 import InternalItemPicker, { InternalItem } from './InternalItemPicker'; // FASE6.1-b
@@ -51,6 +52,62 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   
   // FASE6.1-b: Estado para InternalItemPicker
   const [showInternalPicker, setShowInternalPicker] = useState(false);
+
+  // FASE6.2: Context para resolver movimientos
+  const movimientosContext = useContext(MovimientosContext);
+
+  // ============================================================================
+  // FASE6.2: Helper - Obtener movimientos de una carpeta
+  // ============================================================================
+  
+  /**
+   * Resuelve todos los pagos/cobros vinculados a una carpeta
+   * desde folders.data + MovimientosContext
+   * @returns Array de movimientos listos para exportadores
+   */
+  const getMovementsFromFolder = async (folderName: string): Promise<any[]> => {
+    console.log('[FASE6.2] getMovementsFromFolder:', folderName);
+    
+    try {
+      // Cargar vínculos de la carpeta
+      const content = await getFolderContent(folderName);
+      const linkedPagosCobros = content.items.filter(
+        (item) => item.type === 'pago' || item.type === 'cobro'
+      );
+
+      console.log('[FASE6.2] Linked items in folder:', linkedPagosCobros.length);
+
+      // Resolver movimientos desde MovimientosContext
+      const allMovements = movimientosContext?.movimientos || [];
+      const movements: any[] = [];
+
+      for (const linkedItem of linkedPagosCobros) {
+        const refId = (linkedItem as PagoItem | CobroItem).refId;
+        const movement = allMovements.find((m: any) => m.id === refId);
+        
+        if (movement) {
+          movements.push(movement);
+        } else {
+          console.warn('[FASE6.2] Movement not found for refId:', refId);
+        }
+      }
+
+      const pagosCount = movements.filter((m) => m.tipo === 'pago').length;
+      const cobrosCount = movements.filter((m) => m.tipo === 'cobro').length;
+
+      console.log('[FASE6.2] export folder', {
+        folderName,
+        pagos: pagosCount,
+        cobros: cobrosCount,
+        total: movements.length,
+      });
+
+      return movements;
+    } catch (error) {
+      console.error('[FASE6.2] Error getting movements from folder:', error);
+      return [];
+    }
+  };
 
   useEffect(() => {
     loadFiles();

@@ -58,10 +58,12 @@ const ExportOptionsModal = ({
   onClose, 
   onExport, 
   movimientos = [],
-  loading = false 
+  loading = false,
+  prefilterMovements = null // FASE6.2: Array pre-filtrado (omite pipeline de filtros)
 }) => {
   // 🔍 DEBUG: Confirmar que este componente se renderiza
   console.log('[ExportOptionsModal] render - movimientos:', movimientos.length);
+  console.log('[FASE6.2] prefilterMovements:', prefilterMovements?.length || 'none');
   
   const navigation = useNavigation();
   
@@ -247,6 +249,12 @@ const ExportOptionsModal = ({
 
   // Filtrar movimientos según opciones
   const filtrarMovimientos = () => {
+    // FASE6.2: Si hay pre-filtro, usarlo directamente (omitir pipeline)
+    if (prefilterMovements && Array.isArray(prefilterMovements)) {
+      console.log('[FASE6.2] Using prefilterMovements, skipping filters:', prefilterMovements.length);
+      return prefilterMovements;
+    }
+
     let movsFiltrados = [...movimientos];
     
     // Filtrar por fecha
