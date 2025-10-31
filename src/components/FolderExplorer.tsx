@@ -22,6 +22,7 @@ import { MovimientosContext } from '../state/MovimientosContext'; // FASE6.2
 import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
 import InternalItemPicker, { InternalItem } from './InternalItemPicker'; // FASE6.1-b
+import ExportOptionsModal from './ExportOptionsModal'; // FASE6.2b
 
 interface FileInfo {
   name: string;
@@ -55,6 +56,10 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
 
   // FASE6.2: Context para resolver movimientos
   const movimientosContext = useContext(MovimientosContext);
+  
+  // FASE6.2b: Estado para ExportOptionsModal
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [preFilteredMovements, setPreFilteredMovements] = useState<any[]>([]);
 
   // ============================================================================
   // FASE6.2: Helper - Obtener movimientos de una carpeta
@@ -582,6 +587,38 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   };
 
   // FASE6: Exportar items seleccionados (MVP - solo PDF/CSV de pagos/cobros)
+  // FASE6.2b: Exportar carpeta completa
+  const handleExportFolder = async () => {
+    console.log('[FASE6.2b] Exporting entire folder:', folderType);
+    
+    if (!folderType.startsWith('custom/')) {
+      Alert.alert('Error', 'Solo se pueden exportar carpetas personalizadas');
+      return;
+    }
+    
+    const folderName = folderType.replace('custom/', '');
+    
+    try {
+      const movements = await getMovementsFromFolder(folderName);
+      
+      if (movements.length === 0) {
+        Alert.alert(
+          'Carpeta vacía',
+          'No hay pagos ni cobros en esta carpeta para exportar.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('[FASE6.2b] Opening ExportOptionsModal with', movements.length, 'movements');
+      setPreFilteredMovements(movements);
+      setShowExportModal(true);
+    } catch (error) {
+      console.error('[FASE6.2b] Error preparing folder export:', error);
+      showErrorToast('Error al preparar exportación');
+    }
+  };
+
   const handleExportSelected = () => {
     console.log('[FASE6] Export selected items:', selectedItems.size);
     
@@ -604,26 +641,29 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       return;
     }
     
-    // FASE6: Por ahora mostrar placeholder
-    Alert.alert(
-      'Exportar seleccionados',
-      `${itemsToExport.length} elemento${itemsToExport.length > 1 ? 's' : ''} seleccionado${itemsToExport.length > 1 ? 's' : ''}.\n\nLa exportación desde carpeta estará disponible pronto.\n\nTip: Puedes exportar desde el Historial seleccionando estos movimientos.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Ir al Historial',
-          onPress: () => {
-            onClose();
-            if (navigation) {
-              const parent = navigation.getParent();
-              if (parent) {
-                parent.navigate('HistoryTab');
-              }
-            }
-          }
-        }
-      ]
-    );
+    // FASE6.2b: Resolver movimientos seleccionados y abrir modal de exportación
+    const allMovements = movimientosContext?.movimientos || [];
+    const resolvedMovements: any[] = [];
+    
+    for (const item of itemsToExport) {
+      const refId = (item as PagoItem | CobroItem).refId;
+      const movement = allMovements.find((m: any) => m.id === refId);
+      
+      if (movement) {
+        resolvedMovements.push(movement);
+      }
+    }
+    
+    if (resolvedMovements.length === 0) {
+      Alert.alert('Error', 'No se pudieron resolver los movimientos seleccionados');
+      return;
+    }
+    
+    console.log('[FASE6.2b] Opening ExportOptionsModal with', resolvedMovements.length, 'selected movements');
+    setPreFilteredMovements(resolvedMovements);
+    setShowExportModal(true);
+    setSelectionMode(false);
+    setSelectedItems(new Set());
   };
 
   // FASE6.1-b: Handlers para InternalItemPicker
@@ -736,6 +776,14 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
             ) : folderType.startsWith('custom/') && folderItems.length > 0 ? (
               // FASE6.1-b: Header con contenido - botón "➕ Agregar"
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                {/* FASE6.2b: Botón exportar carpeta */}
+                <TouchableOpacity 
+                  style={s.importBtn} 
+                  onPress={handleExportFolder}
+                  testID="btn-export-folder"
+                >
+                  <Ionicons name="share-outline" size={24} color="#3E7D75" />
+                </TouchableOpacity>
                 <TouchableOpacity 
                   style={s.importBtn} 
                   onPress={handleOpenInternalPicker}
@@ -929,6 +977,20 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         onClose={() => setShowInternalPicker(false)}
         onConfirm={handleConfirmInternalPicker}
         currentFolder={folderType.startsWith('custom/') ? folderType.replace('custom/', '') : undefined}
+      />
+
+      {/* FASE6.2b: ExportOptionsModal para exportar carpeta/selección */}
+      <ExportOptionsModal
+        visible={showExportModal}
+        onClose={() => {
+          setShowExportModal(false);
+          setPreFilteredMovements([]);
+        }}
+        onExport={() => {
+          // Modal maneja exportación internamente
+          console.log('[FASE6.2b] Export completed from folder');
+        }}
+        prefilterMovements={preFilteredMovements}
       />
     </>
   );

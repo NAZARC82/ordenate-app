@@ -48,7 +48,14 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
     if (route?.params?.initialTab) {
       setTab(route.params.initialTab as Tab);
     }
-  }, [route?.params?.initialTab]);
+    // FASE6.2a: Abrir carpeta desde badge de navegación
+    if (route?.params?.openFolder) {
+      console.log('[FASE6.2a] Opening folder from navigation:', route.params.openFolder);
+      setExploringFolder(route.params.openFolder);
+      // Limpiar el parámetro para permitir navegación repetida a la misma carpeta
+      navigation.setParams({ openFolder: undefined });
+    }
+  }, [route?.params?.initialTab, route?.params?.openFolder]);
 
   // 🚨 GUARD-RAIL: Este componente NO debe exportar
   // Solo gestiona firmas y preferencias de diseño PDF + carpetas

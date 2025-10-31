@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext } from 'react';
+import React, { useMemo, useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MovimientosContext } from '../../state/MovimientosContext';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../utils/format';
 import { useFolderLinks } from '../../features/folders/useFolderLinks';
 import FolderPicker from '../FolderPicker';
+import { findFoldersForItem } from '../../features/folders/folders.data'; // FASE6.2a
 
 // Guardia defensiva (opcional, útil mientras probás)
 export default function HistoryPanel(props) {
@@ -143,6 +144,68 @@ export default function HistoryPanel(props) {
     </View>
   );
 
+  // FASE6.2a: Componente para badges de carpetas
+  const FolderBadges = ({ item, navigation }) => {
+    const [folders, setFolders] = useState([]);
+
+    useEffect(() => {
+      const loadFolders = async () => {
+        if (!item?.id || !item?.tipo) return;
+        try {
+          const foundFolders = await findFoldersForItem(item.tipo, item.id);
+          console.log('[FASE6.2a] history badge render', { id: item.id, foldersCount: foundFolders.length });
+          setFolders(foundFolders);
+        } catch (error) {
+          console.error('[FASE6.2a] Error loading folders for item:', error);
+        }
+      };
+      loadFolders();
+    }, [item?.id, item?.tipo]);
+
+    if (folders.length === 0) return null;
+
+    const handleBadgePress = (folderName) => {
+      console.log('[FASE6.2a] Badge pressed, navigating to folder:', folderName);
+      // Navegar a DocumentManagerScreen → tab Carpetas → abrir FolderExplorer
+      navigation?.navigate?.('DocumentManager', {
+        initialTab: 'folders',
+        openFolder: `custom/${folderName}`
+      });
+    };
+
+    return (
+      <View style={styles.folderBadgesContainer}>
+        {folders.slice(0, 2).map((folderName, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.folderBadge}
+            onPress={() => handleBadgePress(folderName)}
+          >
+            <Ionicons name="folder-outline" size={12} color="#6A5ACD" />
+            <Text style={styles.folderBadgeText}>{folderName}</Text>
+          </TouchableOpacity>
+        ))}
+        {folders.length > 2 && (
+          <TouchableOpacity
+            style={styles.folderBadgeMore}
+            onPress={() => {
+              Alert.alert(
+                'Carpetas',
+                folders.join('\n'),
+                folders.map(folder => ({
+                  text: folder,
+                  onPress: () => handleBadgePress(folder)
+                })).concat([{ text: 'Cerrar', style: 'cancel' }])
+              );
+            }}
+          >
+            <Text style={styles.folderBadgeMoreText}>+{folders.length - 2}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   const displayNota = (m) => (m.nota && m.nota.trim()) || (m.concepto && m.concepto.trim()) || '-';
   const renderItem = ({ item }) => {
     const notaLower = normalize(item.nota || item.concepto);
@@ -169,6 +232,8 @@ export default function HistoryPanel(props) {
                 {displayNota(item)}
               </Text>
             </TouchableOpacity>
+            {/* FASE6.2a: Badges de carpetas */}
+            <FolderBadges item={item} navigation={navigation} />
           </View>
           <View style={styles.rowRight}>
             <Text style={[
@@ -539,5 +604,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginTop: 4,
+  },
+  // FASE6.2a: Estilos para badges de carpetas
+  folderBadgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  folderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#F3F0FF',
+    borderWidth: 1,
+    borderColor: '#D4C5F9',
+  },
+  folderBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6A5ACD',
+  },
+  folderBadgeMore: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#E8E8E8',
+  },
+  folderBadgeMoreText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666',
   },
 });

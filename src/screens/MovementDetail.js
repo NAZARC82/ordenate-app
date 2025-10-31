@@ -8,6 +8,7 @@ import { getEstadoColor } from '../utils/estadoColor';
 import { ReminderService } from '../modules/reminders';
 import { formatDate } from '../utils/format';
 import { useFolderLinks } from '../features/folders/useFolderLinks';
+import { findFoldersForItem } from '../features/folders/folders.data'; // FASE6.2a
 import FolderPicker from '../components/FolderPicker';
 
 export default function MovementDetail() {
@@ -27,6 +28,7 @@ export default function MovementDetail() {
   // Estados para carpetas
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const { addToFolder, findLinkedFolders, linkedFolders } = useFolderLinks();
+  const [folderBadges, setFolderBadges] = useState([]); // FASE6.2a
 
   // Buscar movimiento existente para modo edit
   const existingMovimiento = useMemo(() => {
@@ -63,6 +65,22 @@ export default function MovementDetail() {
       findLinkedFolders(tipo, existingMovimiento.id);
     }
   }, [existingMovimiento?.id]);
+
+  // FASE6.2a: Cargar carpetas para badges
+  useEffect(() => {
+    const loadFolderBadges = async () => {
+      if (!existingMovimiento?.id || !tipo) return;
+      try {
+        const folders = await findFoldersForItem(tipo, existingMovimiento.id);
+        console.log('[FASE6.2a] detail badge render', { id: existingMovimiento.id, foldersCount: folders.length });
+        setFolderBadges(folders);
+      } catch (error) {
+        console.error('[FASE6.2a] Error loading folders for badge:', error);
+        setFolderBadges([]);
+      }
+    };
+    loadFolderBadges();
+  }, [existingMovimiento?.id, tipo]);
 
   // Manejar cambios de estado (completar recordatorios si se marca como pagado)
   useEffect(() => {
@@ -313,6 +331,53 @@ export default function MovementDetail() {
           <Text style={styles.label}>Fecha</Text>
           <Text style={styles.dateDisplay}>{formatDate(fechaISO)}</Text>
         </View>
+
+        {/* FASE6.2a: Badges de carpetas */}
+        {folderBadges.length > 0 && mode === 'view' && (
+          <View style={styles.section}>
+            <Text style={styles.label}>Carpetas</Text>
+            <View style={styles.folderBadgesContainer}>
+              {folderBadges.slice(0, 2).map((folderName, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.folderBadgeChip}
+                  onPress={() => {
+                    console.log('[FASE6.2a] Badge pressed in detail, navigating to folder:', folderName);
+                    navigation.navigate('DocumentManager', {
+                      initialTab: 'folders',
+                      openFolder: `custom/${folderName}`
+                    });
+                  }}
+                >
+                  <Ionicons name="folder-outline" size={14} color="#6A5ACD" />
+                  <Text style={styles.folderBadgeChipText}>{folderName}</Text>
+                </TouchableOpacity>
+              ))}
+              {folderBadges.length > 2 && (
+                <TouchableOpacity
+                  style={styles.folderBadgeChipMore}
+                  onPress={() => {
+                    Alert.alert(
+                      'Todas las carpetas',
+                      folderBadges.join('\n'),
+                      folderBadges.map(folder => ({
+                        text: folder,
+                        onPress: () => {
+                          navigation.navigate('DocumentManager', {
+                            initialTab: 'folders',
+                            openFolder: `custom/${folder}`
+                          });
+                        }
+                      })).concat([{ text: 'Cerrar', style: 'cancel' }])
+                    );
+                  }}
+                >
+                  <Text style={styles.folderBadgeChipMoreText}>+{folderBadges.length - 2}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Botones de acción */}
@@ -530,5 +595,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // FASE6.2a: Estilos para badges de carpetas
+  folderBadgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  folderBadgeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#F3F0FF',
+    borderWidth: 1,
+    borderColor: '#D4C5F9',
+  },
+  folderBadgeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6A5ACD',
+  },
+  folderBadgeChipMore: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: '#E8E8E8',
+  },
+  folderBadgeChipMoreText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
   },
 });
