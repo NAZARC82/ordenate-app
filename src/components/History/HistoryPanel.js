@@ -99,12 +99,20 @@ export default function HistoryPanel(props) {
   };
 
   const handleAddToFolder = async (folderName) => {
-    if (!selectedMovement) return;
+    if (!selectedMovement) {
+      console.log('[HIST] handleAddToFolder called with no selectedMovement');
+      return;
+    }
     
     // FolderPicker retorna 'custom/nombre', pero addToFolder espera solo 'nombre'
     const cleanFolderName = folderName.replace('custom/', '');
     
-    console.log('[HistoryPanel] Añadiendo movimiento a carpeta:', cleanFolderName);
+    console.log('[HIST] addToFolder pressed', { 
+      itemId: selectedMovement.id, 
+      tipo: selectedMovement.tipo,
+      folder: cleanFolderName,
+      originalFolder: folderName
+    });
     
     const success = await addToFolder({
       type: selectedMovement.tipo,
@@ -112,9 +120,11 @@ export default function HistoryPanel(props) {
       folderName: cleanFolderName,
       monto: selectedMovement.monto || 0,
       concepto: selectedMovement.nota || selectedMovement.concepto || `${selectedMovement.tipo} de $${selectedMovement.monto || 0}`,
-      fecha: selectedMovement.fechaISO, // fechaISO es obligatorio en MovimientosContext
+      fecha: selectedMovement.fechaISO,
       estado: selectedMovement.estado || 'pendiente'
     });
+
+    console.log('[HIST] addToFolder result:', { success, folder: cleanFolderName });
 
     if (success) {
       setShowFolderPicker(false);
@@ -122,27 +132,31 @@ export default function HistoryPanel(props) {
     }
   };
 
-  const renderRightActions = (item) => (
-    <View style={styles.swipeActions}>
-      <TouchableOpacity 
-        onPress={() => {
-          setSelectedMovement(item);
-          setShowFolderPicker(true);
-        }} 
-        style={styles.swipeFolder}
-      >
-        <Ionicons name="folder" size={20} color="#fff" />
-        <Text style={styles.swipeFolderText}>Carpeta</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        onPress={() => confirmDelete(item.id)} 
-        style={styles.swipeDelete}
-      >
-        <Ionicons name="trash" size={20} color="#fff" />
-        <Text style={styles.swipeDeleteText}>Eliminar</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderRightActions = (item) => {
+    console.log('[HIST] swipe actions render', { itemId: item.id, tipo: item.tipo });
+    return (
+      <View style={styles.swipeActions}>
+        <TouchableOpacity 
+          onPress={() => {
+            console.log('[HIST] Carpeta action pressed', { itemId: item.id });
+            setSelectedMovement(item);
+            setShowFolderPicker(true);
+          }} 
+          style={styles.swipeFolder}
+        >
+          <Ionicons name="folder" size={20} color="#fff" />
+          <Text style={styles.swipeFolderText}>Carpeta</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => confirmDelete(item.id)} 
+          style={styles.swipeDelete}
+        >
+          <Ionicons name="trash" size={20} color="#fff" />
+          <Text style={styles.swipeDeleteText}>Eliminar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   // FASE6.2a: Componente para badges de carpetas
   const FolderBadges = ({ item, navigation }) => {

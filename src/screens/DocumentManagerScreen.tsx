@@ -276,57 +276,78 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
   // FASE6: Eliminación forzada - borra archivos físicos + vínculos + carpeta
   const handleForceDeleteFolder = async (name: string) => {
     try {
-      console.log('[FASE6] force delete folder:', name);
+      console.log('[FORCE-DEL] folder=', name);
       
       // Importar FileSystem para borrar archivos físicos
       const FileSystem = await import('expo-file-system/legacy');
       const { folderPath } = await import('../features/documents/folders');
+      const { purgeByFolder } = await import('../features/documents/registry');
       
       const path = folderPath(name, 'custom');
-      console.log('[FASE6] Borrando contenido en:', path);
+      console.log('[FORCE-DEL] path=', path);
+      
+      let filesRemoved = 0;
+      let linksRemoved = 0;
+      let registryCleaned = 0;
       
       // Intentar borrar todos los archivos (con reintentos cortos)
       try {
         const items = await FileSystem.readDirectoryAsync(path);
-        console.log('[FASE6] Archivos encontrados:', items.length);
+        console.log('[FORCE-DEL] files found:', items.length);
         
         for (const fileName of items) {
           try {
             const filePath = `${path}${fileName}`;
             await FileSystem.deleteAsync(filePath, { idempotent: true });
-            console.log('[FASE6] ✓ Archivo borrado:', fileName);
+            filesRemoved++;
+            console.log('[FORCE-DEL] file removed:', fileName);
           } catch (fileError: any) {
             // Ignorar ENOENT (archivo ya no existe)
             if (!fileError.message?.includes('ENOENT')) {
-              console.warn('[FASE6] No se pudo borrar archivo:', fileName, fileError);
+              console.warn('[FORCE-DEL] could not delete file:', fileName, fileError);
             }
           }
         }
       } catch (readError: any) {
-        console.warn('[FASE6] Error leyendo directorio:', readError);
+        console.warn('[FORCE-DEL] error reading directory:', readError);
       }
       
       // Limpiar vínculos internos (pagos/cobros/recordatorios)
       try {
         await clearFolderContent(name);
-        console.log('[FASE6] ✓ Vínculos eliminados');
+        linksRemoved = 1; // Asumimos que se limpiaron vínculos
+        console.log('[FORCE-DEL] links cleared');
       } catch (error) {
-        console.error('[FASE6] Error limpiando vínculos:', error);
+        console.error('[FORCE-DEL] error clearing links:', error);
       }
       
-      // FASE6: Eliminar carpeta física directamente (no usar deleteFolder que valida vacía)
+      // Limpiar registry (archivos de esta carpeta)
+      try {
+        const before = (await import('../features/documents/registry')).getRecents;
+        const countBefore = (await before()).length;
+        await purgeByFolder(name);
+        const countAfter = (await before()).length;
+        registryCleaned = countBefore - countAfter;
+        console.log('[FORCE-DEL] registry cleaned:', registryCleaned, 'entries');
+      } catch (error) {
+        console.error('[FORCE-DEL] error cleaning registry:', error);
+      }
+      
+      // Eliminar carpeta física directamente (no usar deleteFolder que valida vacía)
       try {
         await FileSystem.deleteAsync(path, { idempotent: true });
-        console.log('[FASE6.1] ✓ Carpeta eliminada del sistema');
+        console.log('[FORCE-DEL] folder removed from filesystem');
       } catch (delError: any) {
-        console.warn('[FASE6] Error eliminando carpeta física:', delError);
+        console.warn('[FORCE-DEL] error deleting folder:', delError);
         // Intentar con deleteFolder normal como fallback
         try {
           await deleteFolder(name);
         } catch (fallbackError) {
-          console.error('[FASE6] Fallback también falló:', fallbackError);
+          console.error('[FORCE-DEL] fallback failed:', fallbackError);
         }
       }
+      
+      console.log('[FORCE-DEL] folder=', name, '| filesRemoved=', filesRemoved, '| linksRemoved=', linksRemoved, '| registryCleaned=', registryCleaned);
       
       showFolderToast('forceDelete', name);
       await loadFolders();

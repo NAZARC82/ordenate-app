@@ -107,3 +107,24 @@ export async function purgeMissing(): Promise<RecentDoc[]> {
   console.log(`[Registry] Purgados ${list.length - keep.length} documentos inexistentes`);
   return keep;
 }
+
+/**
+ * Elimina todos los documentos de una carpeta específica del registry
+ * @param folderName - Nombre de la carpeta (sin prefijo custom/)
+ * @returns Lista actualizada de documentos recientes
+ */
+export async function purgeByFolder(folderName: string): Promise<RecentDoc[]> {
+  const list = await getRecents();
+  const next = list.filter(d => {
+    // Comparar con y sin prefijo custom/
+    if (d.folder === folderName || d.folder === `custom/${folderName}`) {
+      console.log(`[Registry] Purgando documento de carpeta ${folderName}:`, d.name);
+      return false;
+    }
+    return true;
+  });
+  
+  await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  console.log(`[Registry] Purgados ${list.length - next.length} documentos de carpeta ${folderName}`);
+  return next;
+}

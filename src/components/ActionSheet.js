@@ -43,24 +43,25 @@ const ActionSheet = ({
   const handleOpenWith = async () => {
     try {
       if (!fileUri) {
+        console.log('[OPEN] Error: no fileUri');
         Alert.alert('Error', 'No hay archivo para abrir');
         return;
       }
 
       setIsProcessing(true); // ⚠️ Bloquear cierre durante operación
-      console.log('[ActionSheet] Abrir con...:', { fileUri, mimeType });
+      console.log('[OPEN] actionSheet', { name: fileName, uri: fileUri, mimeType });
       
       // Determinar tipo de archivo
       const kind = mimeType === 'text/csv' ? 'csv' : 
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
-      console.log('[ActionSheet] Llamando a presentOpenWithSafely con kind:', kind);
+      console.log('[OPEN] calling presentOpenWithSafely', { kind });
       
       // ⚠️ NO pasar closeModal - lo haremos manualmente después
       await presentOpenWithSafely(fileUri, kind);
       
-      console.log('[ActionSheet] ✓ presentOpenWithSafely completado');
+      console.log('[OPEN] presentOpenWithSafely completed successfully');
       
       // ✅ Cerrar modal DESPUÉS de que Share Sheet esté abierto
       // Usar setTimeout para que no interrumpa el Share Sheet
@@ -83,19 +84,20 @@ const ActionSheet = ({
   const handleViewInternal = async () => {
     try {
       if (!fileUri) {
+        console.log('[OPEN] viewInternal error: no fileUri');
         Alert.alert('Error', 'No hay archivo para visualizar');
         return;
       }
 
       setIsProcessing(true); // ⚠️ Bloquear cierre durante operación
-      console.log('[ActionSheet] Ver interno:', { fileUri, mimeType });
+      console.log('[OPEN] viewInternal', { name: fileName, uri: fileUri, mimeType });
 
       // Determinar tipo de archivo
       const kind = mimeType === 'text/csv' ? 'csv' : 
                    mimeType === 'application/zip' ? 'zip' : 
                    'pdf';
       
-      console.log('[ActionSheet] Llamando a viewInternallySafely con kind:', kind);
+      console.log('[OPEN] calling viewInternallySafely', { kind });
       
       // ⚠️ NO pasar closeModal - lo haremos manualmente después
       await viewInternallySafely(fileUri, kind);

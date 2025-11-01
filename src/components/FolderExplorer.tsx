@@ -296,7 +296,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
 
   const handleImport = async () => {
     try {
-      console.log('[explorer] Iniciando importación de archivos...');
+      console.log('[IMPORT] Iniciando importación de archivos...');
       
       // Abrir DocumentPicker
       const result = await DocumentPicker.getDocumentAsync({
@@ -305,11 +305,11 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         copyToCacheDirectory: true,
       });
       
-      console.log('[explorer] DocumentPicker result:', result);
+      console.log('[IMPORT] DocumentPicker result:', result);
       
       // Usuario canceló
       if (result.canceled) {
-        console.log('[explorer] Importación cancelada por el usuario');
+        console.log('[IMPORT] Importación cancelada por el usuario');
         return;
       }
       
@@ -328,7 +328,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
       
-      console.log('[explorer] Importación completada:', { success: successCount, failed: failCount });
+      console.log('[IMPORT] Importación completada:', { success: successCount, failed: failCount });
       
       // Refrescar lista
       await loadFiles();
@@ -343,6 +343,23 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         showErrorToast('No se pudo importar ningún archivo');
       }
       
+      // NUEVO: Si se importó un solo archivo exitosamente, abrirlo inmediatamente
+      if (results.length === 1 && results[0].success) {
+        const imported = results[0];
+        console.log('[IMPORT] Auto-opening imported file', { name: imported.name, uri: imported.uri });
+        
+        // Crear FileInfo mock para abrir con ActionSheet
+        const fileInfo: FileInfo = {
+          name: imported.name!,
+          uri: imported.uri!,
+          size: result.assets[0].size || 0,
+          modificationTime: Date.now() / 1000
+        };
+        
+        setSelectedFile(fileInfo);
+        setShowActionSheet(true);
+      }
+      
       // Mostrar detalles de errores si los hay
       const errors = results.filter(r => !r.success);
       if (errors.length > 0 && errors.length <= 3) {
@@ -351,7 +368,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
       }
       
     } catch (error: any) {
-      console.error('[explorer] Error al importar:', error);
+      console.error('[IMPORT] Error al importar:', error);
       showErrorToast('Error al importar archivos');
     } finally {
       setImporting(false);
@@ -668,19 +685,21 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
 
   // FASE6.1-b: Handlers para InternalItemPicker
   const handleOpenInternalPicker = () => {
-    console.log('[FASE6.1-b] openLinkExisting');
+    console.log('[INTP] openLinkExisting');
     setShowInternalPicker(true);
   };
 
   const handleConfirmInternalPicker = async (selected: InternalItem[]) => {
-    console.log('[FASE6.1-b] pickerConfirm', { count: selected.length });
+    console.log('[INTP] confirm', { selected: selected.map(s => ({ type: s.type, refId: s.refId })) });
     
     if (!folderType.startsWith('custom/')) {
-      console.warn('[FASE6.1-b] Solo carpetas custom soportan vínculos internos');
+      console.warn('[INTP] Solo carpetas custom soportan vínculos internos');
       return;
     }
 
+    // Limpiar prefijo custom/ del folderName (nunca guardarlo en storage)
     const currentFolderName = folderType.replace('custom/', '');
+    console.log('[INTP] folder cleaned', { original: folderType, clean: currentFolderName });
     let added = 0;
     let skipped = 0;
 
@@ -689,12 +708,13 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         // Verificar si ya está vinculado (evitar duplicados)
         const existingFolders = await findFoldersForItem(item.type, item.refId);
         if (existingFolders.includes(currentFolderName)) {
-          console.log('[FASE6.1-b] Item ya vinculado, skip:', item.refId);
+          console.log('[INTP] item already linked, skip', { type: item.type, refId: item.refId });
           skipped++;
           continue;
         }
 
-        // Añadir vínculo
+        // Añadir vínculo (currentFolderName ya está limpio, sin custom/)
+        console.log('[INTP] adding item to folder', { folder: currentFolderName, type: item.type, refId: item.refId });
         await addItemToFolder(currentFolderName, {
           type: item.type,
           refId: item.refId,
@@ -707,7 +727,7 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         added++;
       }
 
-      console.log('[FASE6.1-b] pickerConfirm complete', { added, skipped });
+      console.log('[INTP] pickerConfirm complete', { added, skipped, folder: currentFolderName });
 
       // Toast feedback
       if (added > 0) {
