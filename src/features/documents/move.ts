@@ -94,16 +94,16 @@ export async function moveToFolder(fileUri: string, targetFolderName: string): P
     // Eliminar entrada vieja
     await deleteRecent(doc.id);
     
-    // Agregar con nueva URI y folder
+    // Agregar con nueva URI y folder (sin custom/ - se agrega en UI)
     await addRecent({
       id: doc.id,
       kind: doc.kind,
       name: doc.name,
       uri: normalizedUri,
-      folder: `custom/${targetFolderName}` as FolderType,
+      folder: targetFolderName as FolderType, // ✅ Sin custom/ prefix
     });
     
-    console.log('[Move] ✓ Registry actualizado');
+    console.log('[Move] ✓ Registry actualizado con folder:', targetFolderName);
   }
 
   console.log('[Move] ✓ Archivo movido exitosamente');

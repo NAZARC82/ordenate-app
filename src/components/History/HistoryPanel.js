@@ -132,6 +132,24 @@ export default function HistoryPanel(props) {
     }
   };
 
+  const handleExportSingle = (item) => {
+    console.log('[HIST] Exportar action pressed', { itemId: item.id, tipo: item.tipo });
+    
+    // Navegar a DocumentManager con modal de exportación
+    if (navigation) {
+      navigation.navigate('DocumentManager', {
+        initialTab: 'folders',
+        exportMovements: [item] // Pasar el movimiento individual
+      });
+    } else {
+      Alert.alert(
+        'Exportar movimiento',
+        'Esta función abrirá el gestor de documentos para exportar este movimiento.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   const renderRightActions = (item) => {
     console.log('[HIST] swipe actions render', { itemId: item.id, tipo: item.tipo });
     return (
@@ -146,6 +164,13 @@ export default function HistoryPanel(props) {
         >
           <Ionicons name="folder" size={20} color="#fff" />
           <Text style={styles.swipeFolderText}>Carpeta</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => handleExportSingle(item)} 
+          style={styles.swipeExport}
+        >
+          <Ionicons name="share-outline" size={20} color="#fff" />
+          <Text style={styles.swipeExportText}>Exportar</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           onPress={() => confirmDelete(item.id)} 
@@ -585,6 +610,19 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   swipeFolderText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 11,
+    marginTop: 4,
+  },
+  swipeExport: {
+    backgroundColor: '#6A5ACD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+  },
+  swipeExportText: {
     color: '#FFF',
     fontWeight: '600',
     fontSize: 11,
