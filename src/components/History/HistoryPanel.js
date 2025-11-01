@@ -8,6 +8,7 @@ import { formatDate } from '../../utils/format';
 import { useFolderLinks } from '../../features/folders/useFolderLinks';
 import FolderPicker from '../FolderPicker';
 import { findFoldersForItem } from '../../features/folders/folders.data'; // FASE6.2a
+import ExportOptionsModal from '../ExportOptionsModal'; // FASE6.3
 
 // Guardia defensiva (opcional, útil mientras probás)
 export default function HistoryPanel(props) {
@@ -24,6 +25,10 @@ export default function HistoryPanel(props) {
   const { addToFolder } = useFolderLinks();
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState(null);
+  
+  // FASE6.3: Estado para exportar movimiento individual
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [movementToExport, setMovementToExport] = useState(null);
   
   // filtros globales
   const [desde, setDesde] = useState(null);
@@ -135,19 +140,9 @@ export default function HistoryPanel(props) {
   const handleExportSingle = (item) => {
     console.log('[HIST] Exportar action pressed', { itemId: item.id, tipo: item.tipo });
     
-    // Navegar a DocumentManager con modal de exportación
-    if (navigation) {
-      navigation.navigate('DocumentManager', {
-        initialTab: 'folders',
-        exportMovements: [item] // Pasar el movimiento individual
-      });
-    } else {
-      Alert.alert(
-        'Exportar movimiento',
-        'Esta función abrirá el gestor de documentos para exportar este movimiento.',
-        [{ text: 'OK' }]
-      );
-    }
+    // FASE6.3: Abrir modal de exportación directamente con el movimiento
+    setMovementToExport(item);
+    setShowExportModal(true);
   };
 
   const renderRightActions = (item) => {
@@ -460,6 +455,18 @@ export default function HistoryPanel(props) {
             setSelectedMovement(null);
           }}
           onSelect={handleAddToFolder}
+        />
+      )}
+      
+      {/* FASE6.3: ExportOptionsModal para exportar movimiento individual */}
+      {showExportModal && movementToExport && (
+        <ExportOptionsModal
+          visible={showExportModal}
+          onClose={() => {
+            setShowExportModal(false);
+            setMovementToExport(null);
+          }}
+          prefilterMovements={[movementToExport]}
         />
       )}
     </View>
