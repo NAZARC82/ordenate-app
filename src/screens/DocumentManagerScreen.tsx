@@ -12,6 +12,13 @@ import { clearFolderContent, renameFolderContent } from '../features/folders/fol
 // Componentes
 // @ts-ignore - TypeScript cache issue, file exists at src/components/FolderExplorer.tsx
 import FolderExplorer from '../components/FolderExplorer';
+// FASE 6.4-CORE: Metadatos de carpetas
+import { useFolderMetadataUI } from '../hooks/useFolderMetadataUI';
+import ColorPickerModal from '../components/ColorPickerModal';
+import IconPickerModal from '../components/IconPickerModal';
+import RenameFolderModal from '../components/RenameFolderModal';
+import FolderContextMenu from '../components/FolderContextMenu';
+import { DEFAULT_FOLDER_COLOR, DEFAULT_FOLDER_ICON } from '../features/folders/types';
 
 type Tab = 'signatures' | 'design' | 'folders';
 
@@ -42,6 +49,13 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [exploringFolder, setExploringFolder] = useState<string | null>(null);
+
+  // FASE 6.4-CORE: Estado para metadatos y modales
+  const { metadata, loading: loadingMetadata, refresh: refreshMetadata, getMetadataForFolder } = useFolderMetadataUI();
+  const [contextMenuFolder, setContextMenuFolder] = useState<string | null>(null);
+  const [colorPickerFolder, setColorPickerFolder] = useState<string | null>(null);
+  const [iconPickerFolder, setIconPickerFolder] = useState<string | null>(null);
+  const [renameModalFolder, setRenameModalFolder] = useState<string | null>(null);
 
   // Sincronizar tab si cambia el parámetro de navegación
   useEffect(() => {
@@ -408,6 +422,55 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
     setExploringFolder(folderType);
   };
 
+  // ============================================================================
+  // FASE 6.4-CORE: Handlers para metadatos
+  // ============================================================================
+
+  const handleMetadataChange = async () => {
+    console.log('[FASE6.4] Metadata changed, refreshing...');
+    await refreshMetadata();
+    await loadFolders(); // Refrescar lista de carpetas
+  };
+
+  const handleOpenContextMenu = (folderName: string) => {
+    console.log('[FASE6.4] Opening context menu for:', folderName);
+    setContextMenuFolder(folderName);
+  };
+
+  const handleColorPickerConfirm = async (color: string) => {
+    console.log('[FASE6.4] Color updated:', color);
+    setColorPickerFolder(null);
+    await handleMetadataChange();
+  };
+
+  const handleIconPickerConfirm = async (icon: string) => {
+    console.log('[FASE6.4] Icon updated:', icon);
+    setIconPickerFolder(null);
+    await handleMetadataChange();
+  };
+
+  const handleRenameConfirm = async (newName: string) => {
+    console.log('[FASE6.4] Folder renamed:', newName);
+    const oldName = renameModalFolder;
+    setRenameModalFolder(null);
+    
+    if (!oldName) return;
+
+    try {
+      // Renombrar carpeta física
+      await renameFolder(oldName, newName);
+      
+      // Migrar vínculos
+      await renameFolderContent(oldName, newName);
+      
+      showFolderToast('rename', newName);
+      await handleMetadataChange();
+    } catch (error: any) {
+      console.error('[FASE6.4] Error renaming folder:', error);
+      showErrorToast(error.message || 'No se pudo renombrar');
+    }
+  };
+
   return (
     <View style={s.container} testID="docmgr-root">
       {/* FolderExplorer Modal */}
@@ -419,6 +482,54 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
             setExploringFolder(null);
             if (tab === 'folders') loadFolders(); // Refrescar counts si hubo cambios
           }}
+        />
+      )}
+
+      {/* FASE 6.4-CORE: Modales de metadatos */}
+      <FolderContextMenu
+        visible={contextMenuFolder !== null}
+        folderName={contextMenuFolder || ''}
+        onRename={() => {
+          setRenameModalFolder(contextMenuFolder);
+          setContextMenuFolder(null);
+        }}
+        onChangeColor={() => {
+          setColorPickerFolder(contextMenuFolder);
+          setContextMenuFolder(null);
+        }}
+        onChangeIcon={() => {
+          setIconPickerFolder(contextMenuFolder);
+          setContextMenuFolder(null);
+        }}
+        onClose={() => setContextMenuFolder(null)}
+      />
+
+      {colorPickerFolder && (
+        <ColorPickerModal
+          visible={true}
+          folderName={colorPickerFolder}
+          initialColor={getMetadataForFolder(colorPickerFolder).color}
+          onConfirm={handleColorPickerConfirm}
+          onCancel={() => setColorPickerFolder(null)}
+        />
+      )}
+
+      {iconPickerFolder && (
+        <IconPickerModal
+          visible={true}
+          folderName={iconPickerFolder}
+          initialIcon={getMetadataForFolder(iconPickerFolder).icon}
+          onConfirm={handleIconPickerConfirm}
+          onCancel={() => setIconPickerFolder(null)}
+        />
+      )}
+
+      {renameModalFolder && (
+        <RenameFolderModal
+          visible={true}
+          currentName={renameModalFolder}
+          onConfirm={handleRenameConfirm}
+          onCancel={() => setRenameModalFolder(null)}
         />
       )}
 
@@ -735,88 +846,80 @@ export default function DocumentManagerScreen({ route, navigation }: any) {
                 ) : (
                   folders
                     .filter((f) => f.type === 'custom')
-                    .map((folder) => (
-                      <View key={folder.name} style={s.folderCard}>
-                        {renamingFolder === folder.name ? (
-                          // Modo edición
-                          <View style={s.renameFolderRow}>
-                            <TextInput
-                              style={s.createFolderInput}
-                              value={renameValue}
-                              onChangeText={setRenameValue}
-                              placeholder="Nuevo nombre..."
-                              autoFocus
-                              testID={`input-rename-${folder.name}`}
-                            />
-                            <TouchableOpacity
-                              style={s.createFolderBtn}
-                              onPress={() => handleRenameFolder(folder.name)}
-                              testID={`btn-confirm-rename-${folder.name}`}
-                            >
-                              <Ionicons name="checkmark" size={20} color="white" />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={s.cancelFolderBtn}
-                              onPress={() => {
-                                setRenamingFolder(null);
-                                setRenameValue('');
-                              }}
-                              testID={`btn-cancel-rename-${folder.name}`}
-                            >
-                              <Ionicons name="close" size={20} color="#999" />
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          // Modo normal
-                          <>
-                            <TouchableOpacity
-                              style={s.folderMainContent}
-                              onPress={() => handleExploreFolder(`custom/${folder.name}`)}
-                              testID={`folder-custom-${folder.name}`}
-                            >
-                              <View style={s.folderIcon}>
-                                <Ionicons name="folder" size={28} color="#6A5ACD" />
-                              </View>
-                              <View style={s.folderContent}>
-                                <Text style={s.folderName}>{folder.name}</Text>
-                                <Text style={s.folderCount}>
-                                  {folder.filesCount} archivo{folder.filesCount !== 1 ? 's' : ''}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
+                    .map((folder) => {
+                      // FASE 6.4-CORE: Obtener metadatos de la carpeta
+                      const folderMetadata = getMetadataForFolder(folder.name);
+                      const folderColor = folderMetadata.color || DEFAULT_FOLDER_COLOR;
+                      const folderIcon = folderMetadata.icon || DEFAULT_FOLDER_ICON;
 
-                            {/* FASE6: Acciones carpeta custom con menú contextual */}
-                            <View style={s.folderActions}>
+                      return (
+                        <View key={folder.name} style={s.folderCard}>
+                          {renamingFolder === folder.name ? (
+                            // Modo edición (deprecated, ahora usa RenameFolderModal)
+                            <View style={s.renameFolderRow}>
+                              <TextInput
+                                style={s.createFolderInput}
+                                value={renameValue}
+                                onChangeText={setRenameValue}
+                                placeholder="Nuevo nombre..."
+                                autoFocus
+                                testID={`input-rename-${folder.name}`}
+                              />
                               <TouchableOpacity
-                                style={s.folderActionBtn}
+                                style={s.createFolderBtn}
+                                onPress={() => handleRenameFolder(folder.name)}
+                                testID={`btn-confirm-rename-${folder.name}`}
+                              >
+                                <Ionicons name="checkmark" size={20} color="white" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={s.cancelFolderBtn}
                                 onPress={() => {
-                                  setRenamingFolder(folder.name);
-                                  setRenameValue(folder.name);
+                                  setRenamingFolder(null);
+                                  setRenameValue('');
                                 }}
-                                testID={`btn-rename-${folder.name}`}
+                                testID={`btn-cancel-rename-${folder.name}`}
                               >
-                                <Ionicons name="pencil" size={18} color="#6A5ACD" />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={s.folderActionBtn}
-                                onPress={() => handleDeleteFolder(folder.name, folder.filesCount)}
-                                testID={`btn-delete-${folder.name}`}
-                              >
-                                <Ionicons name="trash-outline" size={18} color="#E74C3C" />
-                              </TouchableOpacity>
-                              {/* FASE6: Menú contextual "..." */}
-                              <TouchableOpacity
-                                style={s.folderActionBtn}
-                                onPress={() => handleFolderContextMenu(folder.name, folder.filesCount)}
-                                testID={`btn-menu-${folder.name}`}
-                              >
-                                <Ionicons name="ellipsis-horizontal" size={18} color="#999" />
+                                <Ionicons name="close" size={20} color="#999" />
                               </TouchableOpacity>
                             </View>
-                          </>
-                        )}
-                      </View>
-                    ))
+                          ) : (
+                            // Modo normal con metadatos
+                            <>
+                              <TouchableOpacity
+                                style={s.folderMainContent}
+                                onPress={() => handleExploreFolder(`custom/${folder.name}`)}
+                                onLongPress={() => handleOpenContextMenu(folder.name)}
+                                testID={`folder-custom-${folder.name}`}
+                                accessibilityLabel={`Carpeta ${folder.name}, color ${folderColor}, ícono ${folderIcon}`}
+                              >
+                                {/* FASE 6.4-CORE: Swatch de color */}
+                                <View style={[s.folderColorSwatch, { backgroundColor: folderColor }]} />
+
+                                <View style={[s.folderIcon, { backgroundColor: `${folderColor}15` }]}>
+                                  <Ionicons name={folderIcon as any} size={28} color={folderColor} />
+                                </View>
+                                <View style={s.folderContent}>
+                                  <Text style={s.folderName}>{folder.name}</Text>
+                                  <Text style={s.folderCount}>
+                                    {folder.filesCount} archivo{folder.filesCount !== 1 ? 's' : ''}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+
+                              {/* FASE6.4: Botón menú contextual */}
+                              <TouchableOpacity
+                                style={s.folderActionBtn}
+                                onPress={() => handleOpenContextMenu(folder.name)}
+                                testID={`btn-menu-${folder.name}`}
+                              >
+                                <Ionicons name="ellipsis-vertical" size={20} color="#999" />
+                              </TouchableOpacity>
+                            </>
+                          )}
+                        </View>
+                      );
+                    })
                 )}
               </View>
             </>
@@ -1125,6 +1228,17 @@ const s = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // FASE 6.4-CORE: Metadatos visuales
+  folderColorSwatch: {
+    width: 4,
+    height: '100%',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
   },
 });
 

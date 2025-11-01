@@ -23,6 +23,14 @@ import ActionSheet from './ActionSheet';
 import MoveToSheet from './MoveToSheet';
 import InternalItemPicker, { InternalItem } from './InternalItemPicker'; // FASE6.1-b
 import ExportOptionsModal from './ExportOptionsModal'; // FASE6.2b
+// FASE 6.4-CORE: Metadatos y actividad
+import { useFolderMetadataUI } from '../hooks/useFolderMetadataUI';
+import ColorPickerModal from './ColorPickerModal';
+import IconPickerModal from './IconPickerModal';
+import RenameFolderModal from './RenameFolderModal';
+import { getFolderActivity, exportFolderActivityJSON, exportFolderActivityCSV } from '../features/folders/activity.service';
+import type { FolderActivityEvent } from '../features/folders/types';
+import { DEFAULT_FOLDER_COLOR, DEFAULT_FOLDER_ICON } from '../features/folders/types';
 
 interface FileInfo {
   name: string;
@@ -60,6 +68,17 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
   // FASE6.2b: Estado para ExportOptionsModal
   const [showExportModal, setShowExportModal] = useState(false);
   const [preFilteredMovements, setPreFilteredMovements] = useState<any[]>([]);
+
+  // FASE 6.4-CORE: Estados para metadatos y actividad
+  const { metadata, loading: loadingMetadata, refresh: refreshMetadata, getMetadataForFolder } = useFolderMetadataUI();
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [activityEvents, setActivityEvents] = useState<FolderActivityEvent[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityCursor, setActivityCursor] = useState(0);
+  const [hasMoreActivity, setHasMoreActivity] = useState(true);
+  const [showActivityPanel, setShowActivityPanel] = useState(false);
 
   // ============================================================================
   // FASE6.2: Helper - Obtener movimientos de una carpeta
@@ -114,10 +133,130 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
     }
   };
 
+  // ============================================================================
+  // FASE 6.4-CORE: Metadatos y Actividad
+  // ============================================================================
+
+  /**
+   * Carga actividad de la carpeta con paginación
+   */
+  const loadActivity = async (reset: boolean = true) => {
+    if (!isCustomFolder()) return;
+
+    const folderName = getFolderName();
+    setActivityLoading(true);
+
+    try {
+      const cursor = reset ? 0 : activityCursor;
+      const limit = 50;
+
+      console.log('[FASE6.4] Loading activity:', { folderName, cursor, limit });
+
+      const events = await getFolderActivity(folderName, { limit, offset: cursor });
+      
+      if (reset) {
+        setActivityEvents(events);
+      } else {
+        setActivityEvents(prev => [...prev, ...events]);
+      }
+
+      setActivityCursor(cursor + events.length);
+      setHasMoreActivity(events.length === limit);
+
+      console.log('[FASE6.4] Activity loaded:', events.length, 'events');
+    } catch (error) {
+      console.error('[FASE6.4] Error loading activity:', error);
+      showErrorToast('No se pudo cargar la actividad');
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  const handleMetadataRefresh = async () => {
+    console.log('[FASE6.4] Refreshing metadata...');
+    await refreshMetadata();
+    await loadFiles();
+    await loadFolderItems();
+    await loadActivity(true);
+  };
+
+  const handleColorConfirm = async (color: string) => {
+    console.log('[FASE6.4] Color updated:', color);
+    setShowColorPicker(false);
+    showToast('✅ Color actualizado');
+    await handleMetadataRefresh();
+  };
+
+  const handleIconConfirm = async (icon: string) => {
+    console.log('[FASE6.4] Icon updated:', icon);
+    setShowIconPicker(false);
+    showToast('✅ Ícono actualizado');
+    await handleMetadataRefresh();
+  };
+
+  const handleRenameConfirm = async (newName: string) => {
+    console.log('[FASE6.4] Folder renamed to:', newName);
+    setShowRenameModal(false);
+    showToast('✅ Carpeta renombrada');
+    
+    // Actualizar folderType para reflejar nuevo nombre
+    const newFolderType = `custom/${newName}`;
+    
+    // Recargar todo con nuevo nombre
+    await handleMetadataRefresh();
+  };
+
+  const handleExportActivity = async (format: 'json' | 'csv') => {
+    if (!isCustomFolder()) return;
+
+    const folderName = getFolderName();
+
+    try {
+      console.log('[FASE6.4] Exporting activity:', format);
+
+      const content = format === 'json'
+        ? await exportFolderActivityJSON(folderName)
+        : await exportFolderActivityCSV(folderName);
+
+      const fileName = `activity_${folderName}_${Date.now()}.${format}`;
+      const path = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(path, content, { encoding: FileSystem.EncodingType.UTF8 });
+
+      console.log('[FASE6.4] Activity exported:', path);
+      showToast(`✅ Actividad exportada: ${fileName}`);
+
+      // TODO: Abrir/compartir si prefs.showOpenWithAfterExport
+    } catch (error) {
+      console.error('[FASE6.4] Error exporting activity:', error);
+      showErrorToast('No se pudo exportar la actividad');
+    }
+  };
+
   useEffect(() => {
     loadFiles();
     loadFolderItems();
+    loadActivity(); // FASE 6.4-CORE: Cargar actividad inicial
   }, [folderType]);
+
+  // ============================================================================
+  // FASE 6.4-CORE: Helpers
+  // ============================================================================
+
+  /**
+   * Obtiene el nombre de la carpeta desde folderType
+   * Ejemplo: 'custom/Facturas' → 'Facturas'
+   */
+  const getFolderName = (): string => {
+    if (folderType.startsWith('custom/')) {
+      return folderType.replace('custom/', '');
+    }
+    return folderType;
+  };
+
+  const isCustomFolder = (): boolean => {
+    return folderType.startsWith('custom/');
+  };
 
   const loadFiles = async () => {
     setLoading(true);
@@ -847,6 +986,54 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
             )}
           </View>
 
+          {/* FASE 6.4-CORE: Header con metadatos (solo carpetas custom) */}
+          {isCustomFolder() && (
+            <View style={s.metadataHeader}>
+              <View style={s.metadataChips}>
+                {/* Chip de Color */}
+                <TouchableOpacity
+                  style={s.metadataChip}
+                  onPress={() => setShowColorPicker(true)}
+                  accessibilityLabel={`Color de carpeta ${getMetadataForFolder(getFolderName()).color || DEFAULT_FOLDER_COLOR}`}
+                >
+                  <View style={[s.colorSwatch, { backgroundColor: getMetadataForFolder(getFolderName()).color || DEFAULT_FOLDER_COLOR }]} />
+                  <Text style={s.chipLabel}>Color</Text>
+                  <Ionicons name="chevron-down" size={14} color="#999" />
+                </TouchableOpacity>
+
+                {/* Chip de Ícono */}
+                <TouchableOpacity
+                  style={s.metadataChip}
+                  onPress={() => setShowIconPicker(true)}
+                  accessibilityLabel={`Ícono de carpeta ${getMetadataForFolder(getFolderName()).icon || DEFAULT_FOLDER_ICON}`}
+                >
+                  <Ionicons name={(getMetadataForFolder(getFolderName()).icon || DEFAULT_FOLDER_ICON) as any} size={18} color="#6A5ACD" />
+                  <Text style={s.chipLabel}>Ícono</Text>
+                  <Ionicons name="chevron-down" size={14} color="#999" />
+                </TouchableOpacity>
+
+                {/* Botón Renombrar */}
+                <TouchableOpacity
+                  style={s.metadataChip}
+                  onPress={() => setShowRenameModal(true)}
+                >
+                  <Ionicons name="create-outline" size={18} color="#3E7D75" />
+                  <Text style={s.chipLabel}>Renombrar</Text>
+                </TouchableOpacity>
+
+                {/* Botón Actividad */}
+                <TouchableOpacity
+                  style={s.metadataChip}
+                  onPress={() => setShowActivityPanel(!showActivityPanel)}
+                >
+                  <Ionicons name="time-outline" size={18} color="#FF6B6B" />
+                  <Text style={s.chipLabel}>Actividad</Text>
+                  <Ionicons name={showActivityPanel ? "chevron-up" : "chevron-down"} size={14} color="#999" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Body */}
           <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
             {loading ? (
@@ -949,6 +1136,80 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
                 )}
               </>
             )}
+
+            {/* FASE 6.4-CORE: Panel de Actividad */}
+            {isCustomFolder() && showActivityPanel && (
+              <View style={s.activityPanel}>
+                <View style={s.activityHeader}>
+                  <Text style={s.activityTitle}>📋 Actividad</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={s.activityExportBtn}
+                      onPress={() => handleExportActivity('json')}
+                    >
+                      <Ionicons name="code-outline" size={16} color="#6A5ACD" />
+                      <Text style={s.activityExportText}>JSON</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.activityExportBtn}
+                      onPress={() => handleExportActivity('csv')}
+                    >
+                      <Ionicons name="grid-outline" size={16} color="#6A5ACD" />
+                      <Text style={s.activityExportText}>CSV</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {activityLoading && activityEvents.length === 0 ? (
+                  <View style={s.activityEmpty}>
+                    <ActivityIndicator size="small" color="#999" />
+                    <Text style={s.activityEmptyText}>Cargando actividad...</Text>
+                  </View>
+                ) : activityEvents.length === 0 ? (
+                  <View style={s.activityEmpty}>
+                    <Ionicons name="time-outline" size={32} color="#ccc" />
+                    <Text style={s.activityEmptyText}>Sin actividad registrada</Text>
+                  </View>
+                ) : (
+                  <>
+                    {activityEvents.map((event, index) => (
+                      <View key={event.id || index} style={s.activityItem}>
+                        <View style={s.activityIcon}>
+                          <Ionicons
+                            name={getActivityIcon(event.action)}
+                            size={16}
+                            color={getActivityColor(event.action)}
+                          />
+                        </View>
+                        <View style={s.activityContent}>
+                          <Text style={s.activityAction}>{formatActivityAction(event.action)}</Text>
+                          <Text style={s.activityDetail}>{formatActivityDetail(event)}</Text>
+                          <Text style={s.activityDate}>{formatActivityDate(event.created_at)}</Text>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Botón "Cargar más" */}
+                    {hasMoreActivity && (
+                      <TouchableOpacity
+                        style={s.loadMoreBtn}
+                        onPress={() => loadActivity(false)}
+                        disabled={activityLoading}
+                      >
+                        {activityLoading ? (
+                          <ActivityIndicator size="small" color="#6A5ACD" />
+                        ) : (
+                          <>
+                            <Ionicons name="chevron-down" size={16} color="#6A5ACD" />
+                            <Text style={s.loadMoreText}>Cargar más</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -1012,8 +1273,128 @@ export default function FolderExplorer({ folderType, onClose, navigation }: Fold
         }}
         prefilterMovements={preFilteredMovements}
       />
+
+      {/* FASE 6.4-CORE: Modales de metadatos */}
+      {isCustomFolder() && showColorPicker && (
+        <ColorPickerModal
+          visible={showColorPicker}
+          folderName={getFolderName()}
+          initialColor={getMetadataForFolder(getFolderName()).color}
+          onConfirm={handleColorConfirm}
+          onCancel={() => setShowColorPicker(false)}
+        />
+      )}
+
+      {isCustomFolder() && showIconPicker && (
+        <IconPickerModal
+          visible={showIconPicker}
+          folderName={getFolderName()}
+          initialIcon={getMetadataForFolder(getFolderName()).icon}
+          onConfirm={handleIconConfirm}
+          onCancel={() => setShowIconPicker(false)}
+        />
+      )}
+
+      {isCustomFolder() && showRenameModal && (
+        <RenameFolderModal
+          visible={showRenameModal}
+          currentName={getFolderName()}
+          onConfirm={handleRenameConfirm}
+          onCancel={() => setShowRenameModal(false)}
+        />
+      )}
     </>
   );
+}
+
+// ============================================================================
+// FASE 6.4-CORE: Helper functions para formatear actividad
+// ============================================================================
+
+function getActivityIcon(action: string): any {
+  switch (action) {
+    case 'CREATE_FOLDER': return 'add-circle';
+    case 'RENAME_FOLDER': return 'create';
+    case 'SET_FOLDER_COLOR': return 'color-palette';
+    case 'SET_FOLDER_ICON': return 'images';
+    case 'DELETE_FOLDER': return 'trash';
+    case 'LINK_ITEM': return 'link';
+    case 'UNLINK_ITEM': return 'unlink';
+    case 'MOVE_ITEM': return 'move';
+    case 'IMPORT_FILE': return 'cloud-upload';
+    case 'EXPORT_FOLDER': return 'share';
+    default: return 'ellipse';
+  }
+}
+
+function getActivityColor(action: string): string {
+  switch (action) {
+    case 'CREATE_FOLDER': return '#27AE60';
+    case 'RENAME_FOLDER': return '#6A5ACD';
+    case 'SET_FOLDER_COLOR': return '#3E7D75';
+    case 'SET_FOLDER_ICON': return '#FF6B6B';
+    case 'DELETE_FOLDER': return '#E74C3C';
+    case 'LINK_ITEM': return '#2980B9';
+    case 'UNLINK_ITEM': return '#E67E22';
+    case 'MOVE_ITEM': return '#8E44AD';
+    case 'IMPORT_FILE': return '#16A085';
+    case 'EXPORT_FOLDER': return '#3498DB';
+    default: return '#999';
+  }
+}
+
+function formatActivityAction(action: string): string {
+  switch (action) {
+    case 'CREATE_FOLDER': return 'Creada';
+    case 'RENAME_FOLDER': return 'Renombrada';
+    case 'SET_FOLDER_COLOR': return 'Color cambiado';
+    case 'SET_FOLDER_ICON': return 'Ícono cambiado';
+    case 'DELETE_FOLDER': return 'Eliminada';
+    case 'LINK_ITEM': return 'Item vinculado';
+    case 'UNLINK_ITEM': return 'Item desvinculado';
+    case 'MOVE_ITEM': return 'Item movido';
+    case 'IMPORT_FILE': return 'Archivo importado';
+    case 'EXPORT_FOLDER': return 'Carpeta exportada';
+    default: return action;
+  }
+}
+
+function formatActivityDetail(event: FolderActivityEvent): string {
+  const meta = event.meta || {};
+  
+  switch (event.action) {
+    case 'RENAME_FOLDER':
+      return `"${meta.before || '?'}" → "${meta.after || '?'}"`;
+    case 'SET_FOLDER_COLOR':
+      return `${meta.before || '#---'} → ${meta.after || '#---'}`;
+    case 'SET_FOLDER_ICON':
+      return `${meta.before || '?'} → ${meta.after || '?'}`;
+    case 'LINK_ITEM':
+    case 'UNLINK_ITEM':
+      return `${event.target_kind}: ${event.target_id || '?'}`;
+    case 'MOVE_ITEM':
+      return `${meta.from || '?'} → ${meta.to || '?'}`;
+    case 'IMPORT_FILE':
+      return meta.fileName || 'archivo';
+    default:
+      return meta.detail || '';
+  }
+}
+
+function formatActivityDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Ahora';
+  if (diffMins < 60) return `Hace ${diffMins}m`;
+  if (diffHours < 24) return `Hace ${diffHours}h`;
+  if (diffDays < 7) return `Hace ${diffDays}d`;
+  
+  return date.toLocaleDateString('es-UY', { day: '2-digit', month: 'short' });
 }
 
 const s = StyleSheet.create({
@@ -1252,5 +1633,137 @@ const s = StyleSheet.create({
   },
   ctaBtnTextSecondary: {
     color: '#fff',
+  },
+  // FASE 6.4-CORE: Estilos para metadatos
+  metadataHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  metadataChips: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  metadataChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  colorSwatch: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  chipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  // FASE 6.4-CORE: Estilos para panel de actividad
+  activityPanel: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4D3527',
+  },
+  activityExportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: '#F0EBFF',
+  },
+  activityExportText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6A5ACD',
+  },
+  activityEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  activityEmptyText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F5F5',
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4D3527',
+    marginBottom: 2,
+  },
+  activityDetail: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 4,
+  },
+  activityDate: {
+    fontSize: 11,
+    color: '#999',
+  },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: 8,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  loadMoreText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6A5ACD',
   },
 });
